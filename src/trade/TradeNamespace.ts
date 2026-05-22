@@ -1,10 +1,12 @@
 import SteamID from "steamid";
+import type { ConfirmationManager } from "../community/confirmations.js";
 import { DEFAULT_CONTEXTID, LANG, URLS } from "../core/constants.js";
 import { EOfferFilter } from "../core/enums.js";
 import { SteamError } from "../core/errors.js";
 import { type Page, paginate } from "../core/paginate.js";
 import { RETRY_AFTER } from "../core/rateLimits.js";
-import type { OfferTarget, RawGetTradeOffersResponse } from "../core/types.js";
+import { resolveTarget } from "../core/target.js";
+import type { OfferTarget, RawCEconTradeOffer, RawGetTradeOffersResponse } from "../core/types.js";
 import { httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
 import type { WebApiClient } from "../http/webApi.js";
@@ -14,38 +16,46 @@ import {
   type RawPartnerInventoryResponse,
 } from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
-
-interface ResolvedTarget {
-  steamId: string;
-  token: string | undefined;
-}
-
-export function resolveTarget(target: OfferTarget): ResolvedTarget {
-  if ("tradeUrl" in target && target.tradeUrl) {
-    const params = new URL(target.tradeUrl).searchParams;
-    const partner = params.get("partner");
-    if (!partner) throw new SteamError("invalid trade URL: missing partner");
-    const accountId = Number(partner);
-    if (!Number.isInteger(accountId) || accountId <= 0) {
-      throw new SteamError(`invalid trade URL: non-numeric partner '${partner}'`);
-    }
-    return {
-      steamId: SteamID.fromIndividualAccountID(accountId).getSteamID64(),
-      token: params.get("token") ?? undefined,
-    };
-  }
-  if ("steamId" in target && target.steamId) {
-    return { steamId: target.steamId, token: target.token };
-  }
-  throw new SteamError("invalid target: provide tradeUrl or steamId");
-}
+import { TradeOffer, type TradeOfferDeps } from "./TradeOffer.js";
 
 export class TradeNamespace {
   constructor(
     private readonly api: WebApiClient,
     private readonly http: HttpClient,
     private readonly session: SessionManager,
+    private readonly confirmations: ConfirmationManager,
   ) {}
+
+  private offerDeps(): TradeOfferDeps {
+    return {
+      http: this.http,
+      session: this.session,
+      confirmations: this.confirmations,
+      trade: this,
+    };
+  }
+
+  // Local only — no network until send().
+  createOffer(target: OfferTarget): TradeOffer {
+    const { steamId, token } = resolveTarget(target);
+    return new TradeOffer(this.offerDeps(), {
+      partner: new SteamID(steamId),
+      ...(token ? { token } : {}),
+    });
+  }
+
+  async getTradeOffer(id: string): Promise<TradeOffer> {
+    const body = await this.api.call<{ response?: { offer?: RawCEconTradeOffer } }>({
+      httpMethod: "GET",
+      iface: "IEconService",
+      method: "GetTradeOffer",
+      retryAfterMs: RETRY_AFTER.GetTradeOffer,
+      input: { tradeofferid: id, ...LANG },
+    });
+    const raw = body.response?.offer;
+    if (!raw) throw new SteamError(`Trade offer ${id} not found`);
+    return TradeOffer.fromData(this.offerDeps(), raw);
+  }
 
   async getTradeOffers(
     filter: EOfferFilter = EOfferFilter.ActiveOnly,

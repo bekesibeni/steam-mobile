@@ -37,6 +37,16 @@ export enum EConfirmationMethod {
   MobileApp = 2,
 }
 
+export enum EConfirmationType {
+  Invalid = 0,
+  Generic = 1,
+  Trade = 2,
+  MarketListing = 3,
+  FeatureOptOut = 4,
+  PhoneNumberChange = 5,
+  AccountRecovery = 6,
+}
+
 export enum EOfferFilter {
   ActiveOnly = 1,
   HistoricalOnly = 2,
