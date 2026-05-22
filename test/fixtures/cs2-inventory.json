@@ -1,0 +1,197 @@
+{
+  "assets": [
+    {
+      "appid": 730,
+      "contextid": "2",
+      "assetid": "51745566387",
+      "classid": "7993064000",
+      "instanceid": "302028390",
+      "amount": "1"
+    },
+    {
+      "appid": 730,
+      "contextid": "2",
+      "assetid": "51745566386",
+      "classid": "5710094579",
+      "instanceid": "302028390",
+      "amount": "1"
+    },
+    {
+      "appid": 730,
+      "contextid": "2",
+      "assetid": "51656372156",
+      "classid": "241581542",
+      "instanceid": "8466005127",
+      "amount": "1"
+    }
+  ],
+  "descriptions": [
+    {
+      "appid": 730,
+      "classid": "7993064000",
+      "instanceid": "302028390",
+      "currency": 0,
+      "background_color": "393b3e",
+      "icon_url": "i0CoZ81Ui0m-9KwlBY1L_MP9",
+      "descriptions": [
+        { "type": "html", "value": "Exterior: Field-Tested", "name": "exterior_wear" },
+        {
+          "type": "html",
+          "value": "The Harlequin Collection",
+          "color": "9da1a9",
+          "name": "itemset_name"
+        }
+      ],
+      "tradable": 1,
+      "actions": [
+        {
+          "link": "steam://run/730//+csgo_econ_action_preview%20%propid:6%",
+          "name": "Inspect in Game..."
+        }
+      ],
+      "name": "MP9 | Bee-Tron",
+      "name_color": "b0c3d9",
+      "type": "Consumer Grade SMG",
+      "market_name": "MP9 | Bee-Tron (Field-Tested)",
+      "market_hash_name": "MP9 | Bee-Tron (Field-Tested)",
+      "market_actions": [
+        {
+          "link": "steam://run/730//+csgo_econ_action_preview%20%propid:6%",
+          "name": "Inspect in Game..."
+        }
+      ],
+      "commodity": 0,
+      "market_tradable_restriction": 7,
+      "market_marketable_restriction": 7,
+      "marketable": 1,
+      "tags": [
+        {
+          "category": "Weapon",
+          "internal_name": "weapon_mp9",
+          "localized_category_name": "Weapon",
+          "localized_tag_name": "MP9"
+        },
+        {
+          "category": "Exterior",
+          "internal_name": "WearCategory2",
+          "localized_category_name": "Exterior",
+          "localized_tag_name": "Field-Tested"
+        }
+      ],
+      "sealed": 0,
+      "sealed_type": 0
+    },
+    {
+      "appid": 730,
+      "classid": "5710094579",
+      "instanceid": "302028390",
+      "currency": 0,
+      "background_color": "393b3e",
+      "icon_url": "i0CoZ81Ui0m-9KwlBY1L_CASE",
+      "descriptions": [
+        {
+          "type": "html",
+          "value": "Container Series #393",
+          "color": "99ccff",
+          "name": "attr: set supply crate series"
+        }
+      ],
+      "tradable": 1,
+      "name": "Kilowatt Case",
+      "name_color": "b0c3d9",
+      "type": "Base Grade Container",
+      "market_name": "Kilowatt Case",
+      "market_hash_name": "Kilowatt Case",
+      "commodity": 1,
+      "market_tradable_restriction": 7,
+      "market_marketable_restriction": 7,
+      "marketable": 1,
+      "tags": [
+        {
+          "category": "Type",
+          "internal_name": "CSGO_Type_WeaponCase",
+          "localized_category_name": "Type",
+          "localized_tag_name": "Container"
+        }
+      ],
+      "sealed": 0,
+      "sealed_type": 0
+    },
+    {
+      "appid": 730,
+      "classid": "241581542",
+      "instanceid": "8466005127",
+      "currency": 0,
+      "background_color": "393b3e",
+      "icon_url": "i0CoZ81Ui0m-9KwlBY1L_P250",
+      "descriptions": [
+        { "type": "html", "value": "Exterior: Field-Tested", "name": "exterior_wear" }
+      ],
+      "tradable": 1,
+      "actions": [
+        {
+          "link": "steam://run/730//+csgo_econ_action_preview%20%propid:6%",
+          "name": "Inspect in Game..."
+        }
+      ],
+      "name": "P250 | Sand Dune",
+      "name_color": "b0c3d9",
+      "type": "Consumer Grade Pistol",
+      "market_name": "P250 | Sand Dune (Field-Tested)",
+      "market_hash_name": "P250 | Sand Dune (Field-Tested)",
+      "market_actions": [
+        {
+          "link": "steam://run/730//+csgo_econ_action_preview%20%propid:6%",
+          "name": "Inspect in Game..."
+        }
+      ],
+      "commodity": 0,
+      "market_tradable_restriction": 7,
+      "market_marketable_restriction": 7,
+      "marketable": 1,
+      "tags": [
+        {
+          "category": "Weapon",
+          "internal_name": "weapon_p250",
+          "localized_category_name": "Weapon",
+          "localized_tag_name": "P250"
+        }
+      ],
+      "sealed": 0,
+      "sealed_type": 0
+    }
+  ],
+  "asset_properties": [
+    {
+      "appid": 730,
+      "contextid": "2",
+      "assetid": "51745566387",
+      "asset_properties": [
+        { "propertyid": 1, "int_value": "70" },
+        { "propertyid": 2, "float_value": "0.252766847610473633" },
+        {
+          "propertyid": 6,
+          "string_value": "C5D576185F2705C4DDE7E529CFEDC4F5C1FD6D104031C68583AD03C6B5DDAD9DE711"
+        }
+      ]
+    },
+    {
+      "appid": 730,
+      "contextid": "2",
+      "assetid": "51656372156",
+      "asset_properties": [
+        { "propertyid": 1, "int_value": "581" },
+        { "propertyid": 2, "float_value": "0.163202390074729919" },
+        {
+          "propertyid": 6,
+          "string_value": "E2F25E3D345522E3FAC6C281CAE3D2E6DA655F7E13E1A227E68AE692FA4570EC48"
+        }
+      ]
+    }
+  ],
+  "more_items": 1,
+  "last_assetid": "51656372156",
+  "total_inventory_count": 149,
+  "success": 1,
+  "rwgrsn": -2
+}

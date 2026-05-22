@@ -1,6 +1,7 @@
-import { URLS } from "../constants.js";
-import { EResult } from "../enums.js";
-import { HttpStatusError, RateLimitError, SteamError } from "../errors.js";
+import { URLS } from "../core/constants.js";
+import { EResult } from "../core/enums.js";
+import { RateLimitError, SteamError } from "../core/errors.js";
+import { httpError } from "./checkers.js";
 import type { HttpClient } from "./HttpClient.js";
 
 type Scalar = string | number | boolean;
@@ -11,6 +12,7 @@ export interface ApiCallParams {
   method: string;
   version?: number;
   input?: Record<string, Scalar | undefined>;
+  retryAfterMs?: number | null;
 }
 
 type ApiBody = { response?: Record<string, unknown> } & Record<string, unknown>;
@@ -22,7 +24,7 @@ export class WebApiClient {
   ) {}
 
   async call<T = ApiBody>(params: ApiCallParams): Promise<T> {
-    const { httpMethod, iface, method, version = 1, input = {} } = params;
+    const { httpMethod, iface, method, version = 1, input = {}, retryAfterMs = null } = params;
     const accessToken = await this.getAccessToken();
     const url = `${URLS.api}/${iface}/${method}/v${version}/`;
     const payload = { ...input, access_token: accessToken };
@@ -33,7 +35,7 @@ export class WebApiClient {
     });
 
     if (res.statusCode !== 200) {
-      throw new HttpStatusError(res.statusCode, undefined, res.body);
+      throw httpError(res, retryAfterMs);
     }
 
     const header = res.headers["x-eresult"];
@@ -57,7 +59,14 @@ export class WebApiClient {
       const code = Number(eresult);
       const name = EResult[code] ?? "EResult";
       const msg = `${name} (${eresult})${errorMessage ? `: ${errorMessage}` : ""}`;
-      if (code === EResult.RateLimitExceeded) throw new RateLimitError(msg, body);
+      if (code === EResult.RateLimitExceeded) {
+        throw new RateLimitError({
+          message: msg,
+          body,
+          eresult: 84,
+          ...(typeof retryAfterMs === "number" ? { retryAfterMs } : {}),
+        });
+      }
       throw new SteamError(msg, { eresult: code, body });
     }
 

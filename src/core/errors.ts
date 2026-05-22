@@ -28,9 +28,28 @@ export class SteamSessionExpiredError extends SteamError {
 }
 
 export class RateLimitError extends SteamError {
-  constructor(message = "Rate limit exceeded", body?: unknown) {
-    super(message, { eresult: 84, body });
+  readonly statusCode: number | undefined;
+  readonly retryAfterMs: number | undefined;
+  readonly unlockAt: number | undefined;
+
+  constructor(
+    options: {
+      message?: string;
+      body?: unknown;
+      retryAfterMs?: number;
+      eresult?: number;
+      statusCode?: number;
+    } = {},
+  ) {
+    super(options.message ?? "Rate limit exceeded", {
+      ...(options.eresult !== undefined ? { eresult: options.eresult } : {}),
+      body: options.body,
+    });
     this.name = "RateLimitError";
+    this.statusCode = options.statusCode;
+    this.retryAfterMs = options.retryAfterMs;
+    this.unlockAt =
+      options.retryAfterMs !== undefined ? Date.now() + options.retryAfterMs : undefined;
   }
 }
 

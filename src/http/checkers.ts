@@ -1,14 +1,32 @@
 import {
   FamilyViewError,
   HttpStatusError,
+  RateLimitError,
   SteamError,
   SteamSessionExpiredError,
-} from "../errors.js";
+} from "../core/errors.js";
 import type { HttpResponse } from "./HttpClient.js";
 
 function locationHeader(res: HttpResponse<unknown>): string {
   const loc = res.headers.location;
   return Array.isArray(loc) ? (loc[0] ?? "") : (loc ?? "");
+}
+
+export function httpError(
+  res: HttpResponse<unknown>,
+  rateLimitWindowMs?: number | null,
+): SteamError {
+  if (res.statusCode === 429) {
+    return new RateLimitError({
+      statusCode: 429,
+      body: res.body,
+      ...(typeof rateLimitWindowMs === "number" ? { retryAfterMs: rateLimitWindowMs } : {}),
+    });
+  }
+  if (res.statusCode >= 300 && res.statusCode <= 399 && locationHeader(res).includes("/login")) {
+    return new SteamSessionExpiredError();
+  }
+  return new HttpStatusError(res.statusCode, undefined, res.body);
 }
 
 export function checkHttpError(res: HttpResponse<unknown>): void {

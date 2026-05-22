@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import SteamID from "steamid";
-import { ACCESS_TOKEN_RENEW_THRESHOLD_SECONDS } from "../constants.js";
-import { SteamSessionExpiredError } from "../errors.js";
+import { ACCESS_TOKEN_RENEW_THRESHOLD_SECONDS } from "../core/constants.js";
+import { SteamSessionExpiredError } from "../core/errors.js";
 import type { HttpClient } from "../http/HttpClient.js";
 import { decodeJwt, mintAccessToken, type ProtoPost, secondsUntilExpiry } from "./tokens.js";
 

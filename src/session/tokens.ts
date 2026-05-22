@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { ProtoReader, ProtoWriter } from "./proto.js";
 
 export const GENERATE_TOKEN_URL =
   "https://api.steampowered.com/IAuthenticationService/GenerateAccessTokenForApp/v1/";
@@ -45,70 +46,36 @@ export function secondsUntilExpiry(token: string): number {
   return typeof exp === "number" ? exp - Math.floor(Date.now() / 1000) : Number.NaN;
 }
 
-function writeVarint(value: number): number[] {
-  const out: number[] = [];
-  let n = value;
-  while (n > 0x7f) {
-    out.push((n & 0x7f) | 0x80);
-    n = Math.floor(n / 128);
-  }
-  out.push(n);
-  return out;
-}
-
+// GenerateAccessTokenForAppRequest (proto2):
+//   refresh_token = 1 (string), steamid = 2 (fixed64), renewal_type = 3 (enum, always emitted)
 export function encodeGenerateForAppRequest(refreshToken: string, renew = false): Buffer {
-  const bytes: number[] = [];
-  const rt = Buffer.from(refreshToken, "utf8");
-  bytes.push(0x0a, ...writeVarint(rt.length), ...rt);
-
   const sub = decodeJwt(refreshToken)?.sub;
   if (!sub) throw new AccessTokenError("invalid refresh token: no steamid (sub) in payload");
-  const sid = Buffer.alloc(8);
+  let steamId: bigint;
   try {
-    sid.writeBigUInt64LE(BigInt(sub));
+    steamId = BigInt(sub);
   } catch {
     throw new AccessTokenError(`invalid refresh token: non-numeric steamid '${sub}'`);
   }
-  bytes.push(0x11, ...sid);
-
-  bytes.push(0x18, renew ? 1 : 0);
-  return Buffer.from(bytes);
+  return new ProtoWriter()
+    .string(1, refreshToken)
+    .fixed64(2, steamId)
+    .varint(3, renew ? 1 : 0)
+    .finish();
 }
 
+// GenerateAccessTokenForAppResponse: access_token = 1 (string), refresh_token = 2 (string)
 export function decodeGenerateForAppResponse(input: Buffer | Uint8Array): MintResult {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
-  const malformed = () => new AccessTokenError("malformed GenerateAccessTokenForApp response");
-
   const out: Partial<MintResult> = {};
-  let i = 0;
-  while (i < buf.length) {
-    const tag = buf[i++] as number;
-    const field = tag >> 3;
-    const wire = tag & 0x07;
-    if (wire === 2) {
-      let len = 0;
-      let shift = 0;
-      let b: number;
-      do {
-        if (i >= buf.length) throw malformed();
-        b = buf[i++] as number;
-        len += (b & 0x7f) * 2 ** shift;
-        shift += 7;
-      } while (b & 0x80);
-      if (i + len > buf.length) throw malformed();
-      const val = buf.subarray(i, i + len).toString("utf8");
-      i += len;
-      if (field === 1) out.accessToken = val;
-      else if (field === 2) out.refreshToken = val;
-    } else if (wire === 0) {
-      while (i < buf.length && ((buf[i++] as number) & 0x80) !== 0) {}
-    } else if (wire === 1) {
-      i += 8;
-    } else if (wire === 5) {
-      i += 4;
-    } else {
-      throw malformed();
+  try {
+    for (const { field, value } of new ProtoReader(buf).fields()) {
+      if (value.kind !== "bytes") continue;
+      if (field === 1) out.accessToken = value.value.toString("utf8");
+      else if (field === 2) out.refreshToken = value.value.toString("utf8");
     }
+  } catch {
+    throw new AccessTokenError("malformed GenerateAccessTokenForApp response");
   }
   if (!out.accessToken) throw new AccessTokenError("response had no access_token field");
   return out as MintResult;

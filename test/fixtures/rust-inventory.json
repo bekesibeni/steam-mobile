@@ -1,0 +1,165 @@
+{
+  "assets": [
+    {
+      "appid": 252490,
+      "contextid": "2",
+      "assetid": "634552933516051025",
+      "classid": "5603684382",
+      "instanceid": "0",
+      "amount": "78"
+    },
+    {
+      "appid": 252490,
+      "contextid": "2",
+      "assetid": "634551031293038812",
+      "classid": "5603684383",
+      "instanceid": "0",
+      "amount": "412"
+    },
+    {
+      "appid": 252490,
+      "contextid": "2",
+      "assetid": "564782654020111350",
+      "classid": "1368635034",
+      "instanceid": "0",
+      "amount": "1"
+    }
+  ],
+  "descriptions": [
+    {
+      "appid": 252490,
+      "classid": "5603684382",
+      "instanceid": "0",
+      "currency": 0,
+      "background_color": "42413e",
+      "icon_url": "6TMcQ7eX6E0EZl2byXi7vaVKyDk_zQLX05x6eLCFM9neAckxGDf7qU2e2gu64OnAeQ7835Zb42LNfCk4nReh8DEiv5dYMKg_q7w0SPC26R-CSFY",
+      "icon_url_large": "6TMcQ7eX6E0EZl2byXi7vaVKyDk_zQLX05x6eLCFM9neAckxGDf7qU2e2gu64OnAeQ7835Zb42LNfDY0jhyo8DEiv5dYMKg_q7w0SPC2L0sQXe4",
+      "descriptions": [
+        {
+          "type": "bbcode",
+          "value": "[color=#FF9800]This is a skin for the [color=#ffdba5]Road Sign Gloves[/color] item.[/color]"
+        }
+      ],
+      "tradable": 1,
+      "actions": [
+        {
+          "link": "https://steamcommunity.com/sharedfiles/filedetails/?id=3066503009",
+          "name": "View Workshop Item"
+        }
+      ],
+      "owner_descriptions": [
+        {
+          "value": "You can subscribe to or unsubscribe from this item on the item's Workshop page.",
+          "color": "55FF55"
+        }
+      ],
+      "name": "Thundergold Roadsign Gloves",
+      "name_color": "a7ec2e",
+      "type": "Workshop Item",
+      "market_name": "Thundergold Roadsign Gloves",
+      "market_hash_name": "Thundergold Roadsign Gloves",
+      "commodity": 1,
+      "market_tradable_restriction": 7,
+      "market_marketable_restriction": 7,
+      "marketable": 1,
+      "tags": [
+        {
+          "category": "steamcat",
+          "internal_name": "steamcat.clothing",
+          "localized_category_name": "Category",
+          "localized_tag_name": "Clothing"
+        }
+      ],
+      "sealed": 0,
+      "sealed_type": 0
+    },
+    {
+      "appid": 252490,
+      "classid": "5603684383",
+      "instanceid": "0",
+      "currency": 0,
+      "background_color": "42413e",
+      "icon_url": "6TMcQ7eX6E0EZl2byXi7vaVKyDk_zQLX05x6eLCFM9neAckxGDf7qU2e2gu64OnAeQ7835Zb42LMfCk4nReh8DEiv5dYPKs_qrIzQfi7v9eNAjw",
+      "icon_url_large": "6TMcQ7eX6E0EZl2byXi7vaVKyDk_zQLX05x6eLCFM9neAckxGDf7qU2e2gu64OnAeQ7835Zb42LMfDY0jhyo8DEiv5dYPKs_qrIzQfi7UAXbhDo",
+      "descriptions": [
+        {
+          "type": "bbcode",
+          "value": "[color=#FF9800]This is a skin for the [color=#ffdba5]Boots[/color] item.[/color]"
+        }
+      ],
+      "tradable": 1,
+      "actions": [
+        {
+          "link": "https://steamcommunity.com/sharedfiles/filedetails/?id=3066504148",
+          "name": "View Workshop Item"
+        }
+      ],
+      "owner_descriptions": [
+        {
+          "value": "You can subscribe to or unsubscribe from this item on the item's Workshop page.",
+          "color": "55FF55"
+        }
+      ],
+      "name": "Thundergold Boots",
+      "name_color": "a7ec2e",
+      "type": "Workshop Item",
+      "market_name": "Thundergold Boots",
+      "market_hash_name": "Thundergold Boots",
+      "commodity": 1,
+      "market_tradable_restriction": 7,
+      "market_marketable_restriction": 7,
+      "marketable": 1,
+      "tags": [
+        {
+          "category": "itemclass",
+          "internal_name": "shoes.boots",
+          "localized_category_name": "Item Type",
+          "localized_tag_name": "Boots"
+        },
+        {
+          "category": "steamcat",
+          "internal_name": "steamcat.clothing",
+          "localized_category_name": "Category",
+          "localized_tag_name": "Clothing"
+        }
+      ],
+      "sealed": 0,
+      "sealed_type": 0
+    },
+    {
+      "appid": 252490,
+      "classid": "1368635034",
+      "instanceid": "0",
+      "currency": 0,
+      "background_color": "42413e",
+      "icon_url": "6TMcQ7eX6E0EZl2byXi7vaVKyDk_zQLX05x6eLCFM9neAckxGDf7qU2e2gu64OnAeQ7835Je5GvCfCk4nReh8DEiv5dbPqA2qbM2Qfy2mjzuYsY",
+      "icon_url_large": "6TMcQ7eX6E0EZl2byXi7vaVKyDk_zQLX05x6eLCFM9neAckxGDf7qU2e2gu64OnAeQ7835Je5GvCfDY0jhyo8DEiv5dbPqA2qbM2Qfy2Ujj5sRc",
+      "descriptions": [
+        { "type": "bbcode", "value": "A landscape oriented canvas for artists paintings." }
+      ],
+      "tradable": 1,
+      "name": "Landscape Picture Frame",
+      "name_color": "35a3f1",
+      "type": "",
+      "market_name": "Landscape Picture Frame",
+      "market_hash_name": "Landscape Picture Frame",
+      "commodity": 1,
+      "market_tradable_restriction": 7,
+      "market_marketable_restriction": 7,
+      "marketable": 1,
+      "tags": [
+        {
+          "category": "steamcat",
+          "internal_name": "steamcat.misc",
+          "localized_category_name": "Category",
+          "localized_tag_name": "Misc"
+        }
+      ],
+      "sealed": 0,
+      "sealed_type": 0
+    }
+  ],
+  "total_inventory_count": 3,
+  "success": 1,
+  "rwgrsn": -2
+}

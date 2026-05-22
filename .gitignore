@@ -12,6 +12,7 @@ bot.refreshtoken
 .env.*
 !.env.example
 *.maFile
+debug/ratelimit-history.ts
 
 # Poll data
 polldata*.json

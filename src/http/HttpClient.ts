@@ -1,7 +1,7 @@
 import got, { type Got } from "got";
 import { ProxyAgent } from "proxy-agent";
-import { CookieJar } from "tough-cookie";
-import { URLS, USER_AGENT } from "../constants.js";
+import { type Cookie, CookieJar } from "tough-cookie";
+import { URLS, USER_AGENT } from "../core/constants.js";
 
 type Method = "GET" | "POST";
 type ResponseType = "text" | "json" | "buffer";
@@ -98,7 +98,7 @@ export class HttpClient {
 
   async getSessionId(): Promise<string> {
     const cookies = await this.jar.getCookies(URLS.community);
-    const existing = cookies.find((c) => c.key === "sessionid");
+    const existing = cookies.find((c: Cookie) => c.key === "sessionid");
     if (existing) return existing.value;
     const sessionId = randomSessionId();
     await this.setCookie(`sessionid=${sessionId}`);

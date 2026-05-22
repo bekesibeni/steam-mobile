@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import type SteamID from "steamid";
+import { CommunityNamespace } from "./community/CommunityNamespace.js";
 import { HttpClient } from "./http/HttpClient.js";
 import { WebApiClient } from "./http/webApi.js";
 import { SessionManager } from "./session/SessionManager.js";
@@ -22,6 +23,7 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
   readonly session: SessionManager;
   readonly api: WebApiClient;
   readonly trade: TradeNamespace;
+  readonly community: CommunityNamespace;
   readonly identitySecret: string | undefined;
 
   private constructor(
@@ -34,7 +36,8 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
     this.session = session;
     this.identitySecret = identitySecret;
     this.api = new WebApiClient(http, () => session.getAccessToken());
-    this.trade = new TradeNamespace(this.api);
+    this.trade = new TradeNamespace(this.api, http, session);
+    this.community = new CommunityNamespace(http, session);
 
     session.on("refreshToken", (token) => this.emit("refreshToken", token));
     session.on("sessionExpired", (error) => this.emit("sessionExpired", error));

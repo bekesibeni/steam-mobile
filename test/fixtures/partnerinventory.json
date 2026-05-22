@@ -1,0 +1,177 @@
+{
+  "success": true,
+  "rgInventory": {
+    "51691623399": {
+      "id": "51691623399",
+      "classid": "7993060420",
+      "instanceid": "480085569",
+      "amount": "1",
+      "hide_in_china": 0,
+      "pos": 3
+    },
+    "51819331699": {
+      "id": "51819331699",
+      "classid": "1989317432",
+      "instanceid": "302028390",
+      "amount": "1",
+      "hide_in_china": 0,
+      "pos": 1
+    },
+    "48157594328": {
+      "id": "48157594328",
+      "classid": "7993036554",
+      "instanceid": "7841883288",
+      "amount": "1",
+      "hide_in_china": 0,
+      "pos": 10
+    }
+  },
+  "rgCurrency": [],
+  "rgDescriptions": {
+    "1989317432_302028390": {
+      "appid": "730",
+      "classid": "1989317432",
+      "instanceid": "302028390",
+      "icon_url": "IzMF03bi9WpSBq_GRAFFITI",
+      "name": "Sealed Graffiti | King Me (Desert Amber)",
+      "market_hash_name": "Sealed Graffiti | King Me (Desert Amber)",
+      "market_name": "Sealed Graffiti | King Me (Desert Amber)",
+      "name_color": "b0c3d9",
+      "background_color": "393b3e",
+      "type": "Base Grade Graffiti",
+      "tradable": 1,
+      "marketable": 1,
+      "commodity": 1,
+      "market_tradable_restriction": "7",
+      "market_marketable_restriction": "7",
+      "descriptions": [
+        {
+          "type": "html",
+          "value": "This is a sealed container of a graffiti pattern.",
+          "name": "description"
+        }
+      ],
+      "tags": [
+        {
+          "internal_name": "CSGO_Type_Spray",
+          "name": "Graffiti",
+          "category": "Type",
+          "category_name": "Type"
+        }
+      ]
+    },
+    "7993060420_480085569": {
+      "appid": "730",
+      "classid": "7993060420",
+      "instanceid": "480085569",
+      "icon_url": "i0CoZ81Ui0m_MP7CORAL",
+      "name": "MP7 | Coral Paisley",
+      "market_hash_name": "MP7 | Coral Paisley (Field-Tested)",
+      "market_name": "MP7 | Coral Paisley (Field-Tested)",
+      "name_color": "5e98d9",
+      "background_color": "2f363e",
+      "type": "Industrial Grade SMG",
+      "tradable": 1,
+      "marketable": 1,
+      "commodity": 0,
+      "market_tradable_restriction": "7",
+      "market_marketable_restriction": "7",
+      "descriptions": [
+        { "type": "html", "value": "Exterior: Field-Tested", "name": "exterior_wear" }
+      ],
+      "actions": [
+        {
+          "type": "inspect",
+          "name": "Inspect in Game...",
+          "link": "steam://run/730//+csgo_econ_action_preview%20%propid:6%"
+        }
+      ],
+      "tags": [
+        {
+          "internal_name": "weapon_mp7",
+          "name": "MP7",
+          "category": "Weapon",
+          "category_name": "Weapon"
+        },
+        {
+          "internal_name": "WearCategory2",
+          "name": "Field-Tested",
+          "category": "Exterior",
+          "category_name": "Exterior"
+        }
+      ]
+    },
+    "7993036554_7841883288": {
+      "appid": "730",
+      "classid": "7993036554",
+      "instanceid": "7841883288",
+      "icon_url": "i0CoZ81Ui0m_MP7FADE",
+      "name": "MP7 | Fade",
+      "market_hash_name": "MP7 | Fade (Factory New)",
+      "market_name": "MP7 | Fade (Factory New)",
+      "name_color": "8847ff",
+      "background_color": "342c42",
+      "type": "Restricted SMG",
+      "tradable": 1,
+      "marketable": 1,
+      "commodity": 0,
+      "market_tradable_restriction": "7",
+      "market_marketable_restriction": "7",
+      "descriptions": [
+        { "type": "html", "value": "Exterior: Factory New", "name": "exterior_wear" },
+        {
+          "type": "html",
+          "value": "<br><div id=\"sticker_info\"><center><img src=\"navi.png\" title=\"Sticker: Natus Vincere | Budapest 2025\"><br>Sticker: Natus Vincere | Budapest 2025</center></div>",
+          "name": "sticker_info"
+        },
+        {
+          "type": "html",
+          "value": "<br><div id=\"keychain_info\"><center><img src=\"kc.png\" title=\"Charm: Lil' No. 2\"><br>Charm: Lil' No. 2</center></div>",
+          "name": "keychain_info"
+        }
+      ],
+      "actions": [
+        {
+          "type": "inspect",
+          "name": "Inspect in Game...",
+          "link": "steam://run/730//+csgo_econ_action_preview%20%propid:6%"
+        }
+      ],
+      "tags": [
+        {
+          "internal_name": "weapon_mp7",
+          "name": "MP7",
+          "category": "Weapon",
+          "category_name": "Weapon"
+        },
+        {
+          "internal_name": "WearCategory0",
+          "name": "Factory New",
+          "category": "Exterior",
+          "category_name": "Exterior"
+        }
+      ]
+    }
+  },
+  "rgAssetProperties": {
+    "51691623399": [
+      { "propertyid": 1, "int_value": "678" },
+      { "propertyid": 2, "float_value": "0.240212" },
+      {
+        "propertyid": 6,
+        "string_value": "6F7F88C8D1A7AF6E774E4F8565476D5F6B57D59BB89C6C2FC96A076A1F6BEBAD0E5F"
+      }
+    ],
+    "48157594328": [
+      { "propertyid": 1, "int_value": "394" },
+      { "propertyid": 2, "float_value": "0.054235" },
+      {
+        "propertyid": 6,
+        "string_value": "DACA027F706969DBC2FBFA2ADFF2DEEADEE234102230D99A50D9B8D5D2DFCA6F90E7"
+      }
+    ]
+  },
+  "rgAppInfo": { "appid": 730, "name": "Counter-Strike 2" },
+  "more": false,
+  "more_start": false
+}

@@ -28,7 +28,9 @@
     "test:watch": "vitest",
     "m0": "tsx debug/m0-tokens-test.ts",
     "m1": "tsx debug/m1-live-test.ts",
+    "m2": "tsx debug/m2-live-test.ts",
     "ratelimit": "tsx debug/ratelimit-test.ts",
+    "ratehist": "tsx debug/ratelimit-history.ts",
     "test:iecon": "tsx debug/test-iecon.ts"
   },
   "dependencies": {
