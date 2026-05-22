@@ -1,0 +1,50 @@
+export type OfferTarget =
+  | { tradeUrl: string; steamId?: never; token?: never }
+  | { steamId: string; token?: string; tradeUrl?: never };
+
+export interface TradeItem {
+  appid: number;
+  contextid: string;
+  assetid: string;
+  amount?: number;
+}
+
+export interface ProxyOptions {
+  proxy?: string;
+  userAgent?: string;
+}
+
+export interface RawAsset {
+  appid: number;
+  contextid: string;
+  assetid: string;
+  classid: string;
+  instanceid: string;
+  amount: string;
+  missing?: boolean;
+  est_usd?: string;
+}
+
+export interface RawCEconTradeOffer {
+  tradeofferid: string;
+  accountid_other: number;
+  message?: string;
+  expiration_time: number;
+  trade_offer_state: number;
+  items_to_give?: RawAsset[];
+  items_to_receive?: RawAsset[];
+  is_our_offer: boolean;
+  time_created: number;
+  time_updated: number;
+  tradeid?: string;
+  from_real_time_trade: boolean;
+  escrow_end_date: number;
+  confirmation_method: number;
+}
+
+export interface RawGetTradeOffersResponse {
+  trade_offers_sent?: RawCEconTradeOffer[];
+  trade_offers_received?: RawCEconTradeOffer[];
+  descriptions?: unknown[];
+  next_cursor?: number;
+}
