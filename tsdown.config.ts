@@ -6,6 +6,6 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  target: "node24",
+  target: "node22",
   outDir: "dist",
 });

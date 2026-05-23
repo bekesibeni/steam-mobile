@@ -8,13 +8,15 @@ import { HttpClient } from "../http/HttpClient.js";
 import { CredentialSession } from "./CredentialSession.js";
 
 export interface LoginWithCredentialsOptions {
-  accountName: string;
+  username: string;
   password: string;
   sharedSecret?: string; // answers DeviceCode automatically via TOTP
   steamGuardCode?: string;
   machineToken?: string;
   proxy?: string;
   mobileProfile?: MobilePlatform | Partial<MobileProfile>;
+  // Aborts the flow: stops polling and rejects with a LoginError.
+  signal?: AbortSignal;
   // Called when a code is required and none was supplied; resolve to the code to continue.
   onSteamGuardRequired?: (info: { type: number; message: string }) => Promise<string> | string;
 }
@@ -23,7 +25,7 @@ export interface LoginResult {
   refreshToken: string;
   accessToken: string | undefined;
   steamId: string;
-  accountName: string;
+  username: string;
   steamGuardMachineToken: string | undefined;
 }
 
@@ -34,9 +36,28 @@ export function loginWithCredentials(opts: LoginWithCredentialsOptions): Promise
   const session = new CredentialSession(http, profile);
 
   return new Promise<LoginResult>((resolve, reject) => {
-    session.on("error", reject);
-    session.on("timeout", () => reject(new LoginError("login timed out waiting for confirmation")));
+    const { signal } = opts;
+    const onAbort = (): void => {
+      session.stop();
+      reject(new LoginError("login aborted"));
+    };
+    const cleanup = (): void => signal?.removeEventListener("abort", onAbort);
+    const fail = (err: Error): void => {
+      session.stop();
+      cleanup();
+      reject(err);
+    };
+
+    if (signal?.aborted) {
+      reject(new LoginError("login aborted"));
+      return;
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    session.on("error", fail);
+    session.on("timeout", () => fail(new LoginError("login timed out waiting for confirmation")));
     session.on("authenticated", () => {
+      cleanup();
       if (!session.refreshToken || !session.steamID) {
         reject(new LoginError("login completed without a refresh token"));
         return;
@@ -45,7 +66,7 @@ export function loginWithCredentials(opts: LoginWithCredentialsOptions): Promise
         refreshToken: session.refreshToken,
         accessToken: session.accessToken,
         steamId: session.steamID.getSteamID64(),
-        accountName: session.accountName,
+        username: session.username,
         steamGuardMachineToken: session.steamGuardMachineToken,
       });
     });
@@ -53,8 +74,7 @@ export function loginWithCredentials(opts: LoginWithCredentialsOptions): Promise
     session.on("steamGuardRequired", (info) => {
       const handler = opts.onSteamGuardRequired;
       if (!handler) {
-        session.stop();
-        reject(
+        fail(
           new LoginError(
             `${info.message}; pass sharedSecret, steamGuardCode, or onSteamGuardRequired`,
           ),
@@ -63,15 +83,9 @@ export function loginWithCredentials(opts: LoginWithCredentialsOptions): Promise
       }
       Promise.resolve(handler(info))
         .then((code) => session.submitSteamGuardCode(code))
-        .catch((err) => {
-          session.stop();
-          reject(err instanceof Error ? err : new Error(String(err)));
-        });
+        .catch((err) => fail(err instanceof Error ? err : new Error(String(err))));
     });
 
-    session.start(opts).catch((err) => {
-      session.stop();
-      reject(err instanceof Error ? err : new Error(String(err)));
-    });
+    session.start(opts).catch((err) => fail(err instanceof Error ? err : new Error(String(err))));
   });
 }

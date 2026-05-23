@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { describe, expect, it } from "vitest";
 import { AuthClient } from "../src/auth/AuthClient.js";
+import { loginWithCredentials } from "../src/auth/loginWithCredentials.js";
 import { LoginError } from "../src/core/errors.js";
 import type { HttpClient } from "../src/http/HttpClient.js";
 import {
@@ -136,5 +137,15 @@ describe("AuthClient wire format", () => {
     const http = new FakeHttp();
     http.eresult = "5"; // InvalidPassword
     await expect(client(http).getPasswordRSAPublicKey("bob")).rejects.toBeInstanceOf(LoginError);
+  });
+});
+
+describe("loginWithCredentials cancellation", () => {
+  it("rejects without any network when the signal is already aborted", async () => {
+    const ac = new AbortController();
+    ac.abort();
+    await expect(
+      loginWithCredentials({ username: "bob", password: "pw", signal: ac.signal }),
+    ).rejects.toBeInstanceOf(LoginError);
   });
 });

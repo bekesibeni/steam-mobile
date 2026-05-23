@@ -7,7 +7,7 @@ import {
   type MobileProfile,
   resolveMobileProfile,
 } from "./core/mobileProfile.js";
-import { HttpClient } from "./http/HttpClient.js";
+import { HttpClient, type HttpResponse, type RequestOptions } from "./http/HttpClient.js";
 import { WebApiClient } from "./http/webApi.js";
 import { SessionManager } from "./session/SessionManager.js";
 import type { PollOptions, TradeEvents } from "./trade/pollTypes.js";
@@ -84,6 +84,24 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
   // Existing Web API key, or register one; null if the account is ineligible.
   ensureApiKey(domain?: string): Promise<string | null> {
     return this.community.ensureApiKey(domain);
+  }
+
+  // Authenticated escape-hatch HTTP: ensures the session is live, then delegates to http.
+  async request<T = string>(
+    method: "GET" | "POST",
+    url: string,
+    opts?: RequestOptions,
+  ): Promise<HttpResponse<T>> {
+    await this.session.getAccessToken();
+    return this.http.request<T>(method, url, opts);
+  }
+
+  get<T = string>(url: string, opts?: RequestOptions): Promise<HttpResponse<T>> {
+    return this.request<T>("GET", url, opts);
+  }
+
+  post<T = string>(url: string, opts?: RequestOptions): Promise<HttpResponse<T>> {
+    return this.request<T>("POST", url, opts);
   }
 
   get steamID(): SteamID {

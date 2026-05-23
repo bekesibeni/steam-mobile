@@ -25,11 +25,16 @@ export interface MultipartField {
 
 export interface RequestOptions {
   searchParams?: Record<string, Scalar | undefined>;
+  // Request body: pass exactly one of form / multipart / json / body.
   form?: Record<string, Scalar | undefined>;
   multipart?: MultipartField[];
+  json?: unknown;
+  body?: string | Buffer;
   headers?: Record<string, string>;
   responseType?: ResponseType;
   referer?: string;
+  signal?: AbortSignal; // abort the request
+  timeoutMs?: number; // per-request timeout override (default 50000)
 }
 
 function clean(input?: Record<string, Scalar | undefined>): Record<string, string> | undefined {
@@ -101,7 +106,7 @@ export class HttpClient {
       res.statusCode < 400 &&
       location?.includes("/market/eligibilitycheck")
     ) {
-      await this.perform("GET", location, {});
+      await this.perform("GET", location, opts.signal ? { signal: opts.signal } : {});
       return this.perform<T>(method, url, opts);
     }
     return res;
@@ -125,11 +130,13 @@ export class HttpClient {
       headers.Origin = URLS.community;
       if (opts.referer) headers.Referer = opts.referer;
     }
-    let body: string | undefined;
+    let body: string | Buffer | undefined;
     if (opts.multipart) {
       const boundary = `----steamMobile${randomSessionId()}`;
       body = buildMultipart(opts.multipart, boundary);
       headers["Content-Type"] = `multipart/form-data; boundary=${boundary}`;
+    } else if (opts.body !== undefined) {
+      body = opts.body;
     }
     Object.assign(headers, opts.headers); // explicit caller headers win
 
@@ -138,8 +145,11 @@ export class HttpClient {
       searchParams: clean(opts.searchParams),
       ...(opts.form ? { form: clean(opts.form) } : {}),
       ...(body !== undefined ? { body } : {}),
+      ...(opts.json !== undefined ? { json: opts.json } : {}),
       headers,
       responseType: (opts.responseType ?? "text") as "text",
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      ...(opts.timeoutMs !== undefined ? { timeout: { request: opts.timeoutMs } } : {}),
     });
 
     return {

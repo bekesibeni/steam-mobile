@@ -16,7 +16,7 @@ what makes a headless web-only client possible. Credential login, TOTP, RSA, and
 ## Commands
 
 ```bash
-pnpm install                       # pnpm 11, Node 24+
+pnpm install                       # pnpm 11, Node 22+
 pnpm typecheck                     # tsc --noEmit (strict NodeNext)
 pnpm lint                          # biome check src test
 pnpm lint:fix                      # biome check --write (run after edits; fixes import order + wrapping)

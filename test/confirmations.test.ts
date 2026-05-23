@@ -181,3 +181,81 @@ describe("ConfirmationManager.acceptConfirmationForObject", () => {
     expect(http.calls).toHaveLength(0);
   });
 });
+
+describe("ConfirmationManager high-level helpers", () => {
+  const NOW = 1700000000;
+  // One body that satisfies both QueryTime (response.server_time) and getlist/respond (success/conf).
+  const combined = (conf: unknown[]) => ({ response: { server_time: NOW }, success: true, conf });
+  const conf = (id: string, creator: string, nonce: string) => ({
+    id,
+    type: EConfirmationType.Trade,
+    creator_id: creator,
+    nonce,
+    creation_time: NOW,
+  });
+
+  function mgrWith(body: unknown): { http: FakeHttp; mgr: ConfirmationManager } {
+    const http = new FakeHttp();
+    http.setBody(body);
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      "secret",
+      ANDROID_PROFILE,
+    );
+    return { http, mgr };
+  }
+  const multiajaxop = (http: FakeHttp) =>
+    http.posts.filter((p) => p.url.endsWith("/mobileconf/multiajaxop"));
+
+  it("getPending derives the list key automatically", async () => {
+    const { http, mgr } = mgrWith(combined([conf("1", "42", "n")]));
+    const pending = await mgr.getPending();
+    expect(pending).toHaveLength(1);
+    const getlist = http.calls.find((c) => c.url.endsWith("/mobileconf/getlist"))!;
+    expect(getlist.searchParams!.tag).toBe("list");
+    expect(typeof getlist.searchParams!.k).toBe("string"); // HMAC, not caller-supplied
+  });
+
+  it("getPending without identitySecret throws and makes no requests", async () => {
+    const http = new FakeHttp();
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      undefined,
+      ANDROID_PROFILE,
+    );
+    await expect(mgr.getPending()).rejects.toBeInstanceOf(ConfirmationError);
+    expect(http.calls).toHaveLength(0);
+    expect(http.posts).toHaveLength(0);
+  });
+
+  it("acceptConfirmation responds with tag=accept and op=allow", async () => {
+    const { http, mgr } = mgrWith(combined([]));
+    await mgr.acceptConfirmation("777", "nonce777");
+    const post = multiajaxop(http)[0]!;
+    expect(post.searchParams!.op).toBe("allow");
+    expect(post.searchParams!.tag).toBe("accept");
+    expect(post.multipart).toEqual([
+      { name: "cid[]", value: "777" },
+      { name: "ck[]", value: "nonce777" },
+    ]);
+  });
+
+  it("rejectConfirmation responds with tag=cancel and op=cancel", async () => {
+    const { http, mgr } = mgrWith(combined([]));
+    await mgr.rejectConfirmation("9", "k9");
+    const post = multiajaxop(http)[0]!;
+    expect(post.searchParams!.op).toBe("cancel");
+    expect(post.searchParams!.tag).toBe("cancel");
+  });
+
+  it("acceptAll accepts every pending confirmation", async () => {
+    const { http, mgr } = mgrWith(combined([conf("1", "a", "na"), conf("2", "b", "nb")]));
+    const done = await mgr.acceptAll();
+    expect(done).toHaveLength(2);
+    const ops = multiajaxop(http);
+    expect(ops).toHaveLength(2);
+    expect(ops.map((o) => o.multipart![0]!.value)).toEqual(["1", "2"]);
+  });
+});

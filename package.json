@@ -4,10 +4,20 @@
   "private": true,
   "type": "module",
   "description": "Headless Steam mobile-app client (web-based, no CM) for trading.",
+  "author": "bekesibeni",
+  "homepage": "https://github.com/bekesibeni/steam-mobile#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bekesibeni/steam-mobile.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bekesibeni/steam-mobile/issues"
+  },
   "packageManager": "pnpm@11.1.1",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
@@ -18,10 +28,11 @@
     "dist"
   ],
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsdown",
+    "prepare": "tsdown",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src test",
     "lint:fix": "biome check --write src test",
@@ -44,7 +55,7 @@
     "@biomejs/biome": "^2.4.15",
     "@bufbuild/buf": "^1.69.0",
     "@bufbuild/protoc-gen-es": "^2.12.0",
-    "@types/node": "^24",
+    "@types/node": "^22",
     "tsdown": "^0.22.0",
     "tsx": "^4.22.3",
     "typescript": "^6",

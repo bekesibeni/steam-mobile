@@ -26,7 +26,7 @@ export async function login(): Promise<DebugLogin> {
     console.log("[login] using saved refresh token");
   } else {
     const r = await loginWithCredentials({
-      accountName: STEAM.username,
+      username: STEAM.username,
       password: STEAM.password,
       sharedSecret: STEAM.sharedSecret,
       ...(STEAM.proxy ? { proxy: STEAM.proxy } : {}),

@@ -22,7 +22,7 @@ export interface CredentialSessionEvents {
 }
 
 export interface CredentialStartOptions {
-  accountName: string;
+  username: string;
   password: string;
   sharedSecret?: string; // answers DeviceCode automatically via TOTP
   steamGuardCode?: string;
@@ -45,7 +45,7 @@ export class CredentialSession extends EventEmitter<CredentialSessionEvents> {
   private remoteInteractionEmitted = false;
 
   steamID: SteamID | undefined;
-  accountName = "";
+  username = "";
   accessToken: string | undefined;
   refreshToken: string | undefined;
   steamGuardMachineToken: string | undefined;
@@ -60,13 +60,13 @@ export class CredentialSession extends EventEmitter<CredentialSessionEvents> {
   }
 
   async start(opts: CredentialStartOptions): Promise<void> {
-    this.accountName = opts.accountName;
-    const rsa = await this.auth.getPasswordRSAPublicKey(opts.accountName);
+    this.username = opts.username;
+    const rsa = await this.auth.getPasswordRSAPublicKey(opts.username);
     const encryptedPassword = encryptPassword(opts.password, rsa.publickeyMod, rsa.publickeyExp);
 
     // device_friendly_name and platform_type go only inside device_details, matching the iOS app.
     const begin = await this.auth.beginAuthSessionViaCredentials({
-      accountName: opts.accountName,
+      accountName: opts.username,
       encryptedPassword,
       encryptionTimestamp: rsa.timestamp,
       rememberLogin: true,
@@ -200,7 +200,7 @@ export class CredentialSession extends EventEmitter<CredentialSessionEvents> {
 
     if (res.refreshToken) {
       this.refreshToken = res.refreshToken;
-      if (res.accountName) this.accountName = res.accountName;
+      if (res.accountName) this.username = res.accountName;
       this.stop();
       this.emit("authenticated");
       return;

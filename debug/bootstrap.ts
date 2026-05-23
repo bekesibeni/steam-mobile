@@ -8,14 +8,14 @@ import { STEAM } from "./env.js";
 async function main(): Promise<void> {
   console.log("\n=== bootstrap: credential login ===\n");
   const r = await loginWithCredentials({
-    accountName: STEAM.username,
+    username: STEAM.username,
     password: STEAM.password,
     sharedSecret: STEAM.sharedSecret,
     ...(STEAM.proxy ? { proxy: STEAM.proxy } : {}),
   });
   writeFileSync("./bot.refreshtoken", r.refreshToken);
   const aud = (decodeJwt(r.refreshToken)?.aud ?? []) as string[];
-  console.log(`logged in as ${r.accountName} (${r.steamId})`);
+  console.log(`logged in as ${r.username} (${r.steamId})`);
   console.log(`refresh token aud=[${aud.join(",")}] — saved to ./bot.refreshtoken`);
   if (!aud.includes("mobile")) throw new Error("token is not MobileApp-audience");
 

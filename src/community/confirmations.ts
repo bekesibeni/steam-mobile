@@ -118,37 +118,64 @@ export class ConfirmationManager {
     throw new ConfirmationError(String(res.body?.message ?? "Could not act on confirmation"));
   }
 
+  // All pending confirmations, with the list HMAC derived for you (needs identitySecret).
+  async getPending(): Promise<Confirmation[]> {
+    const secret = this.requireSecret();
+    const offset = await this.getTimeOffset();
+    const listTime = SteamTotp.time(offset);
+    const listKey = SteamTotp.getConfirmationKey(secret, listTime, "list");
+    return this.getConfirmations(listTime, { tag: "list", key: listKey });
+  }
+
+  // Accept a single confirmation by id + nonce (its `key`).
+  acceptConfirmation(confID: string, nonce: string): Promise<void> {
+    return this.actOnConfirmation(confID, nonce, true);
+  }
+
+  // Reject (cancel) a single confirmation by id + nonce.
+  rejectConfirmation(confID: string, nonce: string): Promise<void> {
+    return this.actOnConfirmation(confID, nonce, false);
+  }
+
+  // Accept every pending confirmation; returns the ones acted on. Fails fast on the first error.
+  async acceptAll(): Promise<Confirmation[]> {
+    const pending = await this.getPending();
+    for (const c of pending) await this.acceptConfirmation(c.id, c.key);
+    return pending;
+  }
+
   async acceptConfirmationForObject(objectID: string): Promise<void> {
+    const conf = (await this.getPending()).find((c) => c.creator === String(objectID));
+    if (!conf) throw new ConfirmationError(`Could not find confirmation for object ${objectID}`);
+    await this.acceptConfirmation(conf.id, conf.key);
+  }
+
+  private async actOnConfirmation(confID: string, nonce: string, accept: boolean): Promise<void> {
+    const secret = this.requireSecret();
+    const offset = await this.getTimeOffset();
+    const time = this.nextConfTime(offset);
+    const tag = accept ? "accept" : "cancel";
+    const key = SteamTotp.getConfirmationKey(secret, time, tag);
+    await this.respondToConfirmation(confID, nonce, time, { tag, key }, accept);
+  }
+
+  private requireSecret(): string {
     if (!this.identitySecret) {
       throw new ConfirmationError("identitySecret is required to respond to confirmations");
     }
-    const offset = await this.getTimeOffset();
-    const listTime = SteamTotp.time(offset);
-    const listKey = SteamTotp.getConfirmationKey(this.identitySecret, listTime, "list");
-    const confs = await this.getConfirmations(listTime, { tag: "list", key: listKey });
+    return this.identitySecret;
+  }
 
-    const conf = confs.find((c) => c.creator === String(objectID));
-    if (!conf) throw new ConfirmationError(`Could not find confirmation for object ${objectID}`);
-
-    // Each HMAC needs a distinct timestamp; bump locally past any we just used.
+  // A distinct single-use timestamp per HMAC; bump locally past any we've already signed with.
+  private nextConfTime(offset: number): number {
     let time = SteamTotp.time(offset);
     let localOffset = 0;
-    while (this.usedConfTimes.includes(time)) {
-      time = SteamTotp.time(offset) + ++localOffset;
-    }
+    while (this.usedConfTimes.includes(time)) time = SteamTotp.time(offset) + ++localOffset;
     this.usedConfTimes.push(time);
     if (this.usedConfTimes.length > 60) {
       this.usedConfTimes.splice(0, this.usedConfTimes.length - 60);
     }
-
-    const acceptKey = SteamTotp.getConfirmationKey(this.identitySecret, time, "accept");
-    await this.respondToConfirmation(
-      conf.id,
-      conf.key,
-      time,
-      { tag: "accept", key: acceptKey },
-      true,
-    );
+    return time;
   }
 
   // 2025 trade-protection notice; Steam blocks send() until it's acknowledged once.

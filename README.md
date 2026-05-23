@@ -1,4 +1,4 @@
-# steam-mobile
+# Steam Mobile
 
 A headless, fully-typed **ESM TypeScript** client for the **Steam mobile app**, built for trading. It
 unifies the *web* logic of [`steamcommunity`](https://github.com/DoctorMcKay/node-steamcommunity) and
@@ -39,10 +39,10 @@ persistent CM connection.
 ## Installation
 
 ```bash
-pnpm add steam-mobile   # Node 24+, ESM only
+pnpm add steam-mobile   # Node 22+, ESM only
 ```
 
-This package is ESM-only and targets Node 24+. Import it with `import { SteamMobile } from "steam-mobile"`.
+This package is ESM-only and targets Node 22+. Import it with `import { SteamMobile } from "steam-mobile"`.
 
 ## The basics
 
@@ -92,13 +92,14 @@ When you don't yet have a refresh token, use `loginWithCredentials`. This drives
 #### loginWithCredentials(options)
 
 - `options`
-  - `accountName` — Your Steam account name (login name, not persona).
+  - `username` — Your Steam account name (login name, not persona).
   - `password` — Your account password.
   - `sharedSecret` — Optional. Your TOTP `shared_secret`. If present, device (TOTP) Steam Guard codes are answered automatically.
   - `steamGuardCode` — Optional. A Steam Guard code you supply yourself (email or device).
   - `machineToken` — Optional. A previously-issued Steam Guard machine token (`guard_data`) to skip the Guard prompt.
   - `proxy` — Optional. A proxy URL; routes the entire login flow.
   - `mobileProfile` — Optional. `"ios"` (default), `"android"`, or an object overriding individual [profile fields](#mobile-app-impersonation).
+  - `signal` — Optional. An `AbortSignal`; aborting stops polling and rejects with a `LoginError`.
   - `onSteamGuardRequired` — Optional. `async ({ type, message }) => code`. Called when a code is required and none was supplied (e.g. an email code). Resolve it with the code to continue.
 
 Returns a `Promise` that resolves to a **`LoginResult`**:
@@ -106,14 +107,14 @@ Returns a `Promise` that resolves to a **`LoginResult`**:
 - `refreshToken` — The MobileApp refresh token. **Store this** and feed it to `new SteamMobile({ refreshToken })`.
 - `accessToken` — The freshly-minted access token, or `undefined` if Steam didn't return one.
 - `steamId` — The account's SteamID64, as a string.
-- `accountName` — The account name Steam echoed back.
+- `username` — The account name Steam echoed back.
 - `steamGuardMachineToken` — A machine token to reuse as `machineToken` next time, or `undefined`.
 
 ```ts
 import { loginWithCredentials, SteamMobile } from "steam-mobile";
 
 const { refreshToken } = await loginWithCredentials({
-  accountName: "myaccount",
+  username: "myaccount",
   password: "…",
   sharedSecret: "…",            // answers the device-code 2FA automatically
   // onSteamGuardRequired: async ({ message }) => await promptUser(message),
@@ -132,10 +133,10 @@ finer-grained control over the state machine (events for each step, manual code 
 need to react to each step.
 
 - `new CredentialSession(http, profile[, pollTimeoutMs])` — `http` is an `HttpClient`, `profile` a resolved [`MobileProfile`](#mobile-app-impersonation), `pollTimeoutMs` defaults to 180000.
-- `start(options)` — Begins the flow. `options` is the credentials (`accountName`, `password`, `sharedSecret?`, `steamGuardCode?`, `machineToken?`). Returns `Promise<void>`.
+- `start(options)` — Begins the flow. `options` is the credentials (`username`, `password`, `sharedSecret?`, `steamGuardCode?`, `machineToken?`). Returns `Promise<void>`.
 - `submitSteamGuardCode(code)` — Supplies a code in response to a `steamGuardRequired` event. Returns `Promise<void>`.
 - `stop()` — Aborts the flow and clears the poll timer.
-- Properties (populated as the flow progresses): `steamID?`, `accountName`, `accessToken?`, `refreshToken?`, `steamGuardMachineToken?`.
+- Properties (populated as the flow progresses): `steamID?`, `username`, `accessToken?`, `refreshToken?`, `steamGuardMachineToken?`.
 - Events:
   - `authenticated` — A refresh token is available; read it off the instance.
   - `steamGuardRequired` — `{ type, message }`. No code could be supplied automatically; call `submitSteamGuardCode()`.
@@ -191,6 +192,34 @@ confirmation prompt if `identitySecret` is set), as a `Promise<string | null>`. 
 the account is **ineligible** for a key (unverified email, no mobile authenticator, or a
 [limited account](#notes--limitations)). This is a convenience passthrough to
 [`bot.community.ensureApiKey`](#communityensureapikeydomain).
+
+### request(method, url\[, opts]) · get(url\[, opts]) · post(url\[, opts])
+
+Escape hatch for endpoints the typed namespaces don't cover (like `node-steamcommunity`'s
+`httpRequest`). Each ensures the session is live — minting/renewing the access token and applying the
+`steamLoginSecure` cookie — *before* sending, so the request carries your logged-in session, then
+delegates to [`bot.http`](#properties). Throws `SteamSessionExpiredError` if the session can't be
+renewed.
+
+- `method` — `"GET"` or `"POST"`.
+- `url` — Absolute URL.
+- `opts` — A `RequestOptions`: `searchParams`, `headers`, `referer`, `responseType` (`"text"` default, `"json"`, or `"buffer"`), `signal` (an `AbortSignal` to cancel), `timeoutMs` (per-request timeout override; default 50000), and **exactly one** request body of `form`, `multipart`, `json`, or `body` (raw `string`/`Buffer`).
+
+Returns `Promise<HttpResponse<T>>` (`{ statusCode, headers, body }`). Pass a type parameter and
+`responseType: "json"` to get a parsed body.
+
+```ts
+const { body } = await bot.get<{ success: boolean }>(
+  "https://steamcommunity.com/market/priceoverview/",
+  { searchParams: { appid: 730, market_hash_name: "Mag-7 | Heat (Field-Tested)", currency: 1 }, responseType: "json" },
+);
+
+await bot.post("https://steamcommunity.com/some/endpoint", {
+  json: { sessionid: await bot.http.getSessionId(), foo: "bar" },
+});
+```
+
+For requests where you *don't* want the session ensured first, use `bot.http` directly.
 
 ### shutdown()
 
@@ -601,8 +630,32 @@ Revokes this refresh token server-side. Afterward the session is dead and any fu
 
 ## bot.confirmations
 
-The low-level `ConfirmationManager` for mobile confirmations. **Prefer [`offer.confirm()`](#confirm)**
-for trades — these are for advanced cases (market listings, manual flows). All require `identitySecret`.
+The `ConfirmationManager` for mobile confirmations. **Prefer [`offer.confirm()`](#confirm)** for trades;
+these cover other cases (market listings, API-key requests, manual flows). All require `identitySecret`.
+
+The high-level helpers below derive the TOTP time and HMAC key for you — you normally only need these.
+The lower-level `getConfirmations`/`respondToConfirmation` remain for when you want to compute keys yourself.
+
+### getPending()
+
+Returns all outstanding confirmations as `Promise<`[`Confirmation`](#confirmation)`[]>`, deriving the
+list HMAC automatically.
+
+### acceptConfirmation(id, nonce) · rejectConfirmation(id, nonce)
+
+Accept or reject (cancel) a single confirmation by its `id` and `nonce` (the `key` field from
+[`getPending`](#getpending)). Each returns `Promise<void>` and handles the time-offset + per-request
+HMAC timestamp for you.
+
+### acceptAll()
+
+Accepts every pending confirmation and resolves to the [`Confirmation`](#confirmation)`[]` it acted on.
+Fails fast on the first error.
+
+```ts
+for (const c of await bot.confirmations.getPending()) console.log(c.title);
+await bot.confirmations.acceptAll();
+```
 
 ### getConfirmations(time, key)
 
