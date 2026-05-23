@@ -9,7 +9,7 @@ export const URLS = {
 
 export const DEFAULT_CONTEXTID = "2";
 
-export const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
-
 export const ACCESS_TOKEN_RENEW_THRESHOLD_SECONDS = 300;
+// When the refresh token is within this window of expiry, mint with renew=true to rotate it
+// (the MobileApp self-renew path) so an active client's credential never lapses.
+export const REFRESH_TOKEN_RENEW_THRESHOLD_SECONDS = 30 * 86_400;

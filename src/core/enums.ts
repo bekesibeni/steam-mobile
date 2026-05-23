@@ -53,6 +53,47 @@ export enum EOfferFilter {
   All = 3,
 }
 
+// IAuthenticationService enums — clean public-API aliases of the generated wire enums (same values).
+export enum EAuthTokenPlatformType {
+  Unknown = 0,
+  SteamClient = 1,
+  WebBrowser = 2,
+  MobileApp = 3,
+}
+
+export enum ESessionPersistence {
+  Invalid = -1,
+  Ephemeral = 0,
+  Persistent = 1,
+}
+
+export enum EAuthSessionGuardType {
+  Unknown = 0,
+  None = 1,
+  EmailCode = 2,
+  DeviceCode = 3,
+  DeviceConfirmation = 4,
+  EmailConfirmation = 5,
+  MachineToken = 6,
+  LegacyMachineAuth = 7,
+}
+
+export enum EAuthTokenRevokeAction {
+  Logout = 0,
+  Permanent = 1,
+  Replaced = 2,
+  Support = 3,
+  Consume = 4,
+  NonRememberedLogout = 5,
+  NonRememberedPermanent = 6,
+  Automatic = 7,
+}
+
+export enum ETokenRenewalType {
+  None = 0,
+  Allow = 1,
+}
+
 export enum EResult {
   Invalid = 0,
   OK = 1,

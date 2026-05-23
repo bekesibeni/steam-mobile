@@ -33,8 +33,7 @@ export class CommunityNamespace {
     private readonly confirmations: ConfirmationManager,
   ) {}
 
-  // Escrow hold + probation, scraped from the trade page (the mobile token can't use
-  // GetTradeHoldDurations — it returns AccessDenied).
+  // Escrow hold + probation, scraped from the trade page (mobile token gets AccessDenied on GetTradeHoldDurations).
   async checkUser(target: OfferTarget): Promise<UserCheck> {
     await this.session.getAccessToken();
     const { steamId, token } = resolveTarget(target);
@@ -54,8 +53,7 @@ export class CommunityNamespace {
 
     const myEscrowDays = matchInt(html, /var g_daysMyEscrow = (\d+);/);
     const theirEscrowDays = matchInt(html, /var g_daysTheirEscrow = (\d+);/);
-    // The trade page always inlines both escrow vars; if we can't read them, fail loudly
-    // rather than report a misleading 0 (callers trust 0 to mean "no hold").
+    // Fail loud rather than report a misleading 0 — callers trust 0 to mean "no hold".
     if (myEscrowDays === null || theirEscrowDays === null) {
       throw new SteamError("Failed to parse escrow durations from the trade page");
     }
@@ -71,6 +69,25 @@ export class CommunityNamespace {
 
   async acknowledgeTradeProtection(): Promise<void> {
     await this.confirmations.acknowledgeTradeProtection();
+  }
+
+  // Our trade URL, scraped from /profiles/<id>/tradeoffers/privacy directly (we know our steamid; skip upstream's /my redirect).
+  async getTradeURL(): Promise<{ url: string; token: string }> {
+    await this.session.getAccessToken();
+    const steamId = this.session.steamID.getSteamID64();
+    const res = await this.http.get<string>(
+      `${URLS.community}/profiles/${steamId}/tradeoffers/privacy`,
+      { responseType: "text", headers: { Referer: `${URLS.community}/profiles/${steamId}` } },
+    );
+    if (res.statusCode !== 200) throw httpError(res);
+    const html = res.body;
+    checkCommunityError(html);
+
+    const match = html.match(
+      /https?:\/\/(?:www\.)?steamcommunity\.com\/tradeoffer\/new\/\?partner=\d+(?:&|&amp;)token=([a-zA-Z0-9\-_]+)/,
+    );
+    if (!match?.[1]) throw new SteamError("Failed to parse trade URL from the privacy page");
+    return { url: match[0].replace(/&amp;/g, "&"), token: match[1] };
   }
 
   async getInventory(
@@ -104,7 +121,7 @@ export class CommunityNamespace {
       if (!body?.success) {
         throw new SteamError(body?.error ?? body?.Error ?? "Malformed inventory response");
       }
-      // Empty inventory (any app): Steam returns success with no assets. Upstream returns [].
+      // Empty inventory: Steam returns success with no assets.
       if (!body.assets) return { items: [], next: undefined };
 
       return {

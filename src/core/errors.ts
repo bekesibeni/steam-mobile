@@ -90,3 +90,17 @@ export class FamilyViewError extends SteamError {
     this.name = "FamilyViewError";
   }
 }
+
+// Credential-login failures; carries Steam's extended_error_message when present.
+export class LoginError extends SteamError {
+  readonly extendedErrorMessage: string | undefined;
+
+  constructor(
+    message: string,
+    options?: { eresult?: number; body?: unknown; extendedErrorMessage?: string },
+  ) {
+    super(message, options);
+    this.name = "LoginError";
+    this.extendedErrorMessage = options?.extendedErrorMessage;
+  }
+}

@@ -1,8 +1,15 @@
 import { Buffer } from "node:buffer";
-import { ProtoReader, ProtoWriter } from "./proto.js";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import {
+  CAuthentication_AccessToken_GenerateForApp_RequestSchema as RequestSchema,
+  CAuthentication_AccessToken_GenerateForApp_ResponseSchema as ResponseSchema,
+} from "../protobufs/steammessages_auth_pb.js";
+import type { ProtoPost } from "./protoTransport.js";
+
+export type { ProtoPost } from "./protoTransport.js";
 
 export const GENERATE_TOKEN_URL =
-  "https://api.steampowered.com/IAuthenticationService/GenerateAccessTokenForApp/v1/";
+  "https://api.steampowered.com/IAuthenticationService/GenerateAccessTokenForApp/v1";
 
 export interface JwtPayload {
   iss?: string;
@@ -46,8 +53,8 @@ export function secondsUntilExpiry(token: string): number {
   return typeof exp === "number" ? exp - Math.floor(Date.now() / 1000) : Number.NaN;
 }
 
-// GenerateAccessTokenForAppRequest (proto2):
-//   refresh_token = 1 (string), steamid = 2 (fixed64), renewal_type = 3 (enum, always emitted)
+// GenerateAccessTokenForApp_Request: refresh_token=1 string, steamid=2 fixed64, renewal_type=3.
+// renewal_type is set explicitly (even to 0) so it's always on the wire, as the iOS app sends it.
 export function encodeGenerateForAppRequest(refreshToken: string, renew = false): Buffer {
   const sub = decodeJwt(refreshToken)?.sub;
   if (!sub) throw new AccessTokenError("invalid refresh token: no steamid (sub) in payload");
@@ -57,39 +64,32 @@ export function encodeGenerateForAppRequest(refreshToken: string, renew = false)
   } catch {
     throw new AccessTokenError(`invalid refresh token: non-numeric steamid '${sub}'`);
   }
-  return new ProtoWriter()
-    .string(1, refreshToken)
-    .fixed64(2, steamId)
-    .varint(3, renew ? 1 : 0)
-    .finish();
+  const msg = create(RequestSchema, {
+    refreshToken,
+    steamid: steamId,
+    renewalType: renew ? 1 : 0,
+  });
+  return Buffer.from(toBinary(RequestSchema, msg));
 }
 
-// GenerateAccessTokenForAppResponse: access_token = 1 (string), refresh_token = 2 (string)
+// GenerateAccessTokenForApp_Response: access_token=1 string, refresh_token=2 string.
 export function decodeGenerateForAppResponse(input: Buffer | Uint8Array): MintResult {
-  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
-  const out: Partial<MintResult> = {};
+  let accessToken: string;
+  let refreshToken: string;
   try {
-    for (const { field, value } of new ProtoReader(buf).fields()) {
-      if (value.kind !== "bytes") continue;
-      if (field === 1) out.accessToken = value.value.toString("utf8");
-      else if (field === 2) out.refreshToken = value.value.toString("utf8");
-    }
+    const msg = fromBinary(ResponseSchema, toUint8(input));
+    accessToken = msg.accessToken;
+    refreshToken = msg.refreshToken;
   } catch {
     throw new AccessTokenError("malformed GenerateAccessTokenForApp response");
   }
-  if (!out.accessToken) throw new AccessTokenError("response had no access_token field");
-  return out as MintResult;
+  if (!accessToken) throw new AccessTokenError("response had no access_token field");
+  return refreshToken ? { accessToken, refreshToken } : { accessToken };
 }
 
-export type ProtoPost = (
-  url: string,
-  base64Body: string,
-) => Promise<{
-  status: number;
-  eresult: string | null;
-  errorMessage?: string | null;
-  body: Buffer | Uint8Array;
-}>;
+function toUint8(input: Buffer | Uint8Array): Uint8Array {
+  return input instanceof Uint8Array && !Buffer.isBuffer(input) ? input : new Uint8Array(input);
+}
 
 const ERESULT_OK = "1";
 

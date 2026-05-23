@@ -140,7 +140,18 @@ function asRecord<T>(value: Record<string, T> | unknown[] | undefined): Record<s
   return value && !Array.isArray(value) ? value : {};
 }
 
-function buildItem(
+// Key by appid_classid_instanceid: trade offers span multiple apps, so appid must be in the key (unlike single-app inventory).
+export function buildDescriptionMap(
+  descriptions: RawDescription[] | undefined,
+): Map<string, RawDescription> {
+  const map = new Map<string, RawDescription>();
+  for (const d of descriptions ?? []) {
+    map.set(`${d.appid}_${d.classid}_${d.instanceid ?? "0"}`, d);
+  }
+  return map;
+}
+
+export function buildItem(
   asset: RawInventoryAsset,
   description: RawDescription | undefined,
   properties: AssetProperty[],

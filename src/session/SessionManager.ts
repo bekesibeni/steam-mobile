@@ -1,9 +1,30 @@
 import { EventEmitter } from "node:events";
 import SteamID from "steamid";
-import { ACCESS_TOKEN_RENEW_THRESHOLD_SECONDS } from "../core/constants.js";
+import { AuthClient } from "../auth/AuthClient.js";
+import {
+  ACCESS_TOKEN_RENEW_THRESHOLD_SECONDS,
+  REFRESH_TOKEN_RENEW_THRESHOLD_SECONDS,
+} from "../core/constants.js";
+import { EAuthTokenRevokeAction, EResult } from "../core/enums.js";
 import { SteamSessionExpiredError } from "../core/errors.js";
 import type { HttpClient } from "../http/HttpClient.js";
-import { decodeJwt, mintAccessToken, type ProtoPost, secondsUntilExpiry } from "./tokens.js";
+import { createProtoPost, type ProtoPost } from "./protoTransport.js";
+import {
+  AccessTokenError,
+  decodeJwt,
+  type MintResult,
+  mintAccessToken,
+  secondsUntilExpiry,
+} from "./tokens.js";
+
+// Retryable rejections (not "refresh token is dead").
+const TRANSIENT_ERESULTS = new Set<number>([
+  EResult.ServiceUnavailable,
+  EResult.Busy,
+  EResult.Timeout,
+  EResult.TryAnotherCM,
+  EResult.RemoteCallFailed,
+]);
 
 export interface SessionManagerEvents {
   refreshToken: [token: string];
@@ -13,28 +34,26 @@ export interface SessionManagerEvents {
 
 export class SessionManager extends EventEmitter<SessionManagerEvents> {
   refreshToken: string;
-  accessToken?: string;
+  accessToken: string | undefined;
   readonly steamID: SteamID;
   private readonly http: HttpClient;
+  private readonly protoPost: ProtoPost;
   private minting: Promise<string> | undefined;
+  private revoked = false;
 
-  private constructor(http: HttpClient, refreshToken: string, steamID: SteamID) {
+  constructor(http: HttpClient, refreshToken: string) {
     super();
-    this.http = http;
-    this.refreshToken = refreshToken;
-    this.steamID = steamID;
-  }
-
-  static async fromRefreshToken(http: HttpClient, refreshToken: string): Promise<SessionManager> {
     const sub = decodeJwt(refreshToken)?.sub;
     if (!sub)
       throw new SteamSessionExpiredError("invalid refresh token: no steamid (sub) in payload");
-    const mgr = new SessionManager(http, refreshToken, new SteamID(sub));
-    await mgr.getAccessToken();
-    return mgr;
+    this.http = http;
+    this.protoPost = createProtoPost(http);
+    this.refreshToken = refreshToken;
+    this.steamID = new SteamID(sub);
   }
 
   async getAccessToken(): Promise<string> {
+    if (this.revoked) throw new SteamSessionExpiredError("session has been revoked (logged out)");
     if (
       this.accessToken &&
       secondsUntilExpiry(this.accessToken) > ACCESS_TOKEN_RENEW_THRESHOLD_SECONDS
@@ -49,8 +68,39 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     return this.minting;
   }
 
+  // Client ids of in-progress auth sessions (login-approval flows), not a device list.
+  async listSessions(): Promise<bigint[]> {
+    const accessToken = await this.getAccessToken();
+    const res = await new AuthClient(this.http).getAuthSessionsForAccount(accessToken);
+    return res.clientIds;
+  }
+
+  // Revoke this refresh token; the session is dead afterward and further calls throw.
+  async logout(action: EAuthTokenRevokeAction = EAuthTokenRevokeAction.Logout): Promise<void> {
+    const accessToken = await this.getAccessToken();
+    await new AuthClient(this.http).revokeRefreshToken(accessToken, action);
+    this.revoked = true;
+    this.accessToken = undefined;
+    this.emit("debug", "refresh token revoked (logout)");
+  }
+
   private async mint(): Promise<string> {
-    const result = await mintAccessToken(this.refreshToken, false, this.protoPost);
+    const refreshExpiresIn = secondsUntilExpiry(this.refreshToken);
+    if (refreshExpiresIn <= 0) {
+      throw this.expire("refresh token has expired — re-authentication required");
+    }
+
+    const renew = refreshExpiresIn < REFRESH_TOKEN_RENEW_THRESHOLD_SECONDS;
+    let result: MintResult;
+    try {
+      result = await mintAccessToken(this.refreshToken, renew, this.protoPost);
+    } catch (err) {
+      if (err instanceof AccessTokenError && isTerminalAuthFailure(err)) {
+        throw this.expire(`refresh token rejected by Steam: ${err.message}`);
+      }
+      throw err;
+    }
+
     this.accessToken = result.accessToken;
     if (result.refreshToken && result.refreshToken !== this.refreshToken) {
       this.refreshToken = result.refreshToken;
@@ -59,23 +109,18 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     await this.applyLoginCookie();
     this.emit(
       "debug",
-      `minted access token, expires in ${Math.round(secondsUntilExpiry(result.accessToken))}s`,
+      `minted access token${renew ? " + renewed refresh token" : ""}, expires in ` +
+        `${Math.round(secondsUntilExpiry(result.accessToken))}s`,
     );
     return result.accessToken;
   }
 
-  private readonly protoPost: ProtoPost = async (url, base64Body) => {
-    const res = await this.http.post<Buffer | Uint8Array>(url, {
-      form: { input_protobuf_encoded: base64Body },
-      responseType: "buffer",
-    });
-    return {
-      status: res.statusCode,
-      eresult: headerValue(res.headers["x-eresult"]) ?? null,
-      errorMessage: headerValue(res.headers["x-error_message"]) ?? null,
-      body: res.body,
-    };
-  };
+  // Emit sessionExpired so a global handler can trigger re-auth.
+  private expire(message: string): SteamSessionExpiredError {
+    const err = new SteamSessionExpiredError(message);
+    this.emit("sessionExpired", err);
+    return err;
+  }
 
   private async applyLoginCookie(): Promise<void> {
     const value = encodeURIComponent(`${this.steamID.getSteamID64()}||${this.accessToken}`);
@@ -83,6 +128,8 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
   }
 }
 
-function headerValue(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
+// Any Steam-side eresult is terminal unless known-transient; missing eresult (HTTP/transport) is transient.
+// TODO: tighten the terminal set once we've live-observed what a revoked/expired refresh token returns.
+function isTerminalAuthFailure(err: AccessTokenError): boolean {
+  return typeof err.eresult === "number" && !TRANSIENT_ERESULTS.has(err.eresult);
 }

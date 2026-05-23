@@ -1,0 +1,9 @@
+version: v2
+inputs:
+  - directory: protobufs
+plugins:
+  - local: protoc-gen-es
+    out: src/protobufs
+    opt:
+      - target=ts
+      - import_extension=js

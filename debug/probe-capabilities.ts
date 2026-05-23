@@ -10,38 +10,21 @@
  *
  * Run:  npx tsx probe-capabilities.ts
  */
-import { EAuthSessionGuardType, EAuthTokenPlatformType, LoginSession } from "steam-session";
-import SteamTotp from "steam-totp";
+import * as SteamTotp from "../src/crypto/steamTotp.js";
 import { STEAM } from "./env.js";
+import { login } from "./login.js";
 
 const CONFIG = {
-  username: STEAM.username,
-  password: STEAM.password,
-  sharedSecret: STEAM.sharedSecret,
   identitySecret: STEAM.identitySecret,
-  proxy: STEAM.proxy,
 };
-
-const LOGIN_TIMEOUT_MS = 30_000;
-
-function cookieHeaderForHost(cookies: string[], host: string): string {
-  const byName = new Map<string, string>();
-  for (const raw of cookies) {
-    const parts = raw.split(";").map((s) => s.trim());
-    const nv = parts[0] ?? "";
-    const eq = nv.indexOf("=");
-    if (eq < 0) continue;
-    const domainAttr = parts.find((a) => a.toLowerCase().startsWith("domain="));
-    const domain = domainAttr ? domainAttr.slice(7).replace(/^\./, "").toLowerCase() : null;
-    const matches = !domain || host === domain || host.endsWith(`.${domain}`);
-    if (matches) byName.set(nv.slice(0, eq), nv.slice(eq + 1));
-  }
-  return [...byName.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
-}
 
 type Outcome = "ok" | "warn" | "fail";
 const results: { group: string; name: string; outcome: Outcome; detail: string }[] = [];
-async function check(group: string, name: string, fn: () => Promise<{ outcome: Outcome; detail: string }>) {
+async function check(
+  group: string,
+  name: string,
+  fn: () => Promise<{ outcome: Outcome; detail: string }>,
+) {
   try {
     const { outcome, detail } = await fn();
     results.push({ group, name, outcome, detail });
@@ -57,7 +40,10 @@ async function webApi(
   accessToken: string,
   params: Record<string, string | number>,
 ): Promise<{ status: number; eresult: string | null; json: any; text: string }> {
-  const qs = new URLSearchParams({ access_token: accessToken, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])) });
+  const qs = new URLSearchParams({
+    access_token: accessToken,
+    ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])),
+  });
   const res = await fetch(`https://api.steampowered.com/${iface}/${method}/v${version}/?${qs}`);
   const text = await res.text();
   let json: any = null;
@@ -70,80 +56,111 @@ async function webApi(
 async function main(): Promise<void> {
   console.log(`\n=== MobileApp capability sweep ===\n`);
 
-  const session = new LoginSession(EAuthTokenPlatformType.MobileApp, CONFIG.proxy ? { httpProxy: CONFIG.proxy } : undefined);
-  const authed = new Promise<void>((resolve, reject) => {
-    session.on("authenticated", () => resolve());
-    session.on("error", (e: Error) => reject(e));
-    session.on("timeout", () => reject(new Error("login timeout")));
-  });
-  const code = SteamTotp.generateAuthCode(CONFIG.sharedSecret);
-  const start = await session.startWithCredentials({ accountName: CONFIG.username, password: CONFIG.password, steamGuardCode: code });
-  if (start.actionRequired && (start.validActions ?? []).some((a) => a.type === EAuthSessionGuardType.DeviceCode)) {
-    await session.submitSteamGuardCode(code);
-  }
-  await Promise.race([authed, new Promise<never>((_, r) => setTimeout(() => r(new Error("login timeout (race)")), LOGIN_TIMEOUT_MS))]);
-
-  const steamID = session.steamID.getSteamID64();
-  const cookies = await session.getWebCookies();
-  const accessToken = session.accessToken!;
-  const cookieStr = cookieHeaderForHost(cookies, "steamcommunity.com");
+  const { steamID, accessToken, cookieHeader: cookieStr } = await login();
   console.log(`logged in as ${steamID}; access token aud=[web,mobile]\n`);
 
   // ── A. Trade offers (IEconService, access_token) ──────────────────────────────────────
   await check("A. tradeoffers (web API)", "GetTradeOffers", async () => {
-    const r = await webApi("IEconService", "GetTradeOffers", 1, accessToken, { get_received_offers: 1, get_sent_offers: 1, active_only: 1, time_historical_cutoff: 0 });
-    if (r.status !== 200) return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
-    return { outcome: "ok", detail: `sent=${r.json?.response?.trade_offers_sent?.length ?? 0} recv=${r.json?.response?.trade_offers_received?.length ?? 0}` };
+    const r = await webApi("IEconService", "GetTradeOffers", 1, accessToken, {
+      get_received_offers: 1,
+      get_sent_offers: 1,
+      active_only: 1,
+      time_historical_cutoff: 0,
+    });
+    if (r.status !== 200)
+      return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
+    return {
+      outcome: "ok",
+      detail: `sent=${r.json?.response?.trade_offers_sent?.length ?? 0} recv=${r.json?.response?.trade_offers_received?.length ?? 0}`,
+    };
   });
   await check("A. tradeoffers (web API)", "GetTradeOffersSummary", async () => {
-    const r = await webApi("IEconService", "GetTradeOffersSummary", 1, accessToken, { time_last_visit: 0 });
-    if (r.status !== 200) return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
+    const r = await webApi("IEconService", "GetTradeOffersSummary", 1, accessToken, {
+      time_last_visit: 0,
+    });
+    if (r.status !== 200)
+      return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
     return { outcome: "ok", detail: JSON.stringify(r.json?.response ?? {}) };
   });
   await check("A. tradeoffers (web API)", "GetTradeHistory", async () => {
-    const r = await webApi("IEconService", "GetTradeHistory", 1, accessToken, { max_trades: 1, include_total: 1, include_failed: 0, get_descriptions: 0 });
-    if (r.status !== 200) return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
+    const r = await webApi("IEconService", "GetTradeHistory", 1, accessToken, {
+      max_trades: 1,
+      include_total: 1,
+      include_failed: 0,
+      get_descriptions: 0,
+    });
+    if (r.status !== 200)
+      return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
     return { outcome: "ok", detail: `total=${r.json?.response?.total_trades ?? 0}` };
   });
   await check("A. tradeoffers (web API)", "GetTradeHoldDurations (own)", async () => {
-    const r = await webApi("IEconService", "GetTradeHoldDurations", 1, accessToken, { steamid_target: steamID });
-    if (r.status !== 200) return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
+    const r = await webApi("IEconService", "GetTradeHoldDurations", 1, accessToken, {
+      steamid_target: steamID,
+    });
+    if (r.status !== 200)
+      return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
     return { outcome: "ok", detail: JSON.stringify(r.json?.response ?? {}) };
   });
   await check("A. tradeoffers (web API)", "GetTradeOffer (invalid id)", async () => {
     const r = await webApi("IEconService", "GetTradeOffer", 1, accessToken, { tradeofferid: 1 });
     // 200/eresult or a clean error both prove the token is accepted; only auth-denied is a fail.
-    if (r.eresult === "15" || r.status === 401 || r.status === 403) return { outcome: "fail", detail: `auth denied (HTTP ${r.status} eresult=${r.eresult})` };
+    if (r.eresult === "15" || r.status === 401 || r.status === 403)
+      return { outcome: "fail", detail: `auth denied (HTTP ${r.status} eresult=${r.eresult})` };
     return { outcome: "ok", detail: `reachable+authed (HTTP ${r.status} eresult=${r.eresult})` };
   });
 
   // ── B. Broader web API services (does the mobile token work beyond IEconService?) ─────
   await check("B. other web API (token)", "ISteamUser/GetPlayerSummaries", async () => {
-    const r = await webApi("ISteamUser", "GetPlayerSummaries", 2, accessToken, { steamids: steamID });
-    if (r.status !== 200) return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult} (may require API key)` };
+    const r = await webApi("ISteamUser", "GetPlayerSummaries", 2, accessToken, {
+      steamids: steamID,
+    });
+    if (r.status !== 200)
+      return {
+        outcome: "fail",
+        detail: `HTTP ${r.status} eresult=${r.eresult} (may require API key)`,
+      };
     const p = r.json?.response?.players?.[0];
-    return { outcome: "ok", detail: p ? `persona=${p.personaname} level? created=${p.timecreated ? new Date(p.timecreated * 1000).toISOString().slice(0, 10) : "?"}` : "empty" };
+    return {
+      outcome: "ok",
+      detail: p
+        ? `persona=${p.personaname} level? created=${p.timecreated ? new Date(p.timecreated * 1000).toISOString().slice(0, 10) : "?"}`
+        : "empty",
+    };
   });
   await check("B. other web API (token)", "IPlayerService/GetSteamLevel", async () => {
     const r = await webApi("IPlayerService", "GetSteamLevel", 1, accessToken, { steamid: steamID });
-    if (r.status !== 200) return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
+    if (r.status !== 200)
+      return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
     return { outcome: "ok", detail: `level=${r.json?.response?.player_level ?? "?"}` };
   });
   await check("B. other web API (token)", "IPlayerService/GetOwnedGames", async () => {
-    const r = await webApi("IPlayerService", "GetOwnedGames", 1, accessToken, { steamid: steamID, include_appinfo: 0 });
-    if (r.status !== 200) return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
+    const r = await webApi("IPlayerService", "GetOwnedGames", 1, accessToken, {
+      steamid: steamID,
+      include_appinfo: 0,
+    });
+    if (r.status !== 200)
+      return { outcome: "fail", detail: `HTTP ${r.status} eresult=${r.eresult}` };
     return { outcome: "ok", detail: `games=${r.json?.response?.game_count ?? 0}` };
   });
 
   // ── C. steamcommunity (cookies) ───────────────────────────────────────────────────────
   await check("C. steamcommunity (cookies)", "own CS2 inventory 730/2", async () => {
-    const res = await fetch(`https://steamcommunity.com/inventory/${steamID}/730/2?l=english&count=50`, { headers: { Cookie: cookieStr } });
-    if (res.status !== 200) return { outcome: res.status === 403 ? "warn" : "fail", detail: `HTTP ${res.status} (403 = private/empty, not a platform limit)` };
+    const res = await fetch(
+      `https://steamcommunity.com/inventory/${steamID}/730/2?l=english&count=50`,
+      { headers: { Cookie: cookieStr } },
+    );
+    if (res.status !== 200)
+      return {
+        outcome: res.status === 403 ? "warn" : "fail",
+        detail: `HTTP ${res.status} (403 = private/empty, not a platform limit)`,
+      };
     const j: any = await res.json();
     return { outcome: "ok", detail: `assets=${j?.assets?.length ?? 0}` };
   });
   await check("C. steamcommunity (cookies)", "profile XML (persona/avatar)", async () => {
-    const res = await fetch(`https://steamcommunity.com/profiles/${steamID}?xml=1`, { headers: { Cookie: cookieStr } });
+    const res = await fetch(`https://steamcommunity.com/profiles/${steamID}?xml=1`, {
+      headers: { Cookie: cookieStr },
+    });
     const t = await res.text();
     const persona = t.match(/<steamID><!\[CDATA\[(.*?)\]\]><\/steamID>/)?.[1];
     const created = t.match(/<memberSince>(.*?)<\/memberSince>/)?.[1];
@@ -151,31 +168,54 @@ async function main(): Promise<void> {
     return { outcome: "ok", detail: `persona=${persona} memberSince=${created ?? "?"}` };
   });
   await check("C. steamcommunity (cookies)", "trade URL / token", async () => {
-    const res = await fetch(`https://steamcommunity.com/profiles/${steamID}/tradeoffers/privacy`, { headers: { Cookie: cookieStr }, redirect: "manual" });
+    const res = await fetch(`https://steamcommunity.com/profiles/${steamID}/tradeoffers/privacy`, {
+      headers: { Cookie: cookieStr },
+      redirect: "manual",
+    });
     const loc = res.headers.get("location") ?? "";
     if (res.status >= 300 && res.status < 400) {
       if (loc.includes("/login")) return { outcome: "fail", detail: "redirected to /login" };
-      return { outcome: "warn", detail: `logged in but redirected → ${loc.split("?")[0]} (account limited)` };
+      return {
+        outcome: "warn",
+        detail: `logged in but redirected → ${loc.split("?")[0]} (account limited)`,
+      };
     }
     const html = await res.text();
     const m = html.match(/\/tradeoffer\/new\/\?partner=\d+&(?:amp;)?token=([\w-]+)/);
-    return m ? { outcome: "ok", detail: `token=${m[1]}` } : { outcome: "warn", detail: `HTTP ${res.status}, no token (limited account?)` };
+    return m
+      ? { outcome: "ok", detail: `token=${m[1]}` }
+      : { outcome: "warn", detail: `HTTP ${res.status}, no token (limited account?)` };
   });
   await check("C. steamcommunity (cookies)", "web API key (/dev/apikey)", async () => {
-    const res = await fetch(`https://steamcommunity.com/dev/apikey?l=english`, { headers: { Cookie: cookieStr }, redirect: "manual" });
-    if (res.status >= 300 && res.status < 400) return { outcome: "fail", detail: `redirected → ${(res.headers.get("location") ?? "").split("?")[0]}` };
+    const res = await fetch(`https://steamcommunity.com/dev/apikey?l=english`, {
+      headers: { Cookie: cookieStr },
+      redirect: "manual",
+    });
+    if (res.status >= 300 && res.status < 400)
+      return {
+        outcome: "fail",
+        detail: `redirected → ${(res.headers.get("location") ?? "").split("?")[0]}`,
+      };
     const html = await res.text();
     const key = html.match(/Key:\s*([0-9A-F]{32})/)?.[1];
     if (key) return { outcome: "ok", detail: `existing key=${key.slice(0, 6)}…` };
-    if (html.includes("You must have a validated email") || html.includes("access_denied") || html.includes("limited"))
+    if (
+      html.includes("You must have a validated email") ||
+      html.includes("access_denied") ||
+      html.includes("limited")
+    )
       return { outcome: "warn", detail: "no key; account not eligible to register one (limited)" };
     return { outcome: "ok", detail: "page reachable, no key registered yet" };
   });
   await check("C. steamcommunity (cookies)", "notification counts (logged-in only)", async () => {
-    const res = await fetch(`https://steamcommunity.com/actions/GetNotificationCounts`, { headers: { Cookie: cookieStr } });
+    const res = await fetch(`https://steamcommunity.com/actions/GetNotificationCounts`, {
+      headers: { Cookie: cookieStr },
+    });
     if (res.status !== 200) return { outcome: "fail", detail: `HTTP ${res.status}` };
     const j: any = await res.json().catch(() => null);
-    return j?.notifications ? { outcome: "ok", detail: "authenticated (got notification counts)" } : { outcome: "fail", detail: "no notifications object — not logged in" };
+    return j?.notifications
+      ? { outcome: "ok", detail: "authenticated (got notification counts)" }
+      : { outcome: "fail", detail: "no notifications object — not logged in" };
   });
 
   // ── D. confirmations (identity_secret) ────────────────────────────────────────────────
@@ -186,7 +226,8 @@ async function main(): Promise<void> {
     const res = await fetch(url, { headers: { Cookie: cookieStr } });
     const j: any = await res.json().catch(() => null);
     if (j?.needauth) return { outcome: "fail", detail: "needauth" };
-    if (!j?.success) return { outcome: "fail", detail: `success=false: ${j?.message ?? j?.detail}` };
+    if (!j?.success)
+      return { outcome: "fail", detail: `success=false: ${j?.message ?? j?.detail}` };
     return { outcome: "ok", detail: `${Array.isArray(j.conf) ? j.conf.length : 0} pending` };
   });
 

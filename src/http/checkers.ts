@@ -23,8 +23,15 @@ export function httpError(
       ...(typeof rateLimitWindowMs === "number" ? { retryAfterMs: rateLimitWindowMs } : {}),
     });
   }
-  if (res.statusCode >= 300 && res.statusCode <= 399 && locationHeader(res).includes("/login")) {
-    return new SteamSessionExpiredError();
+  if (res.statusCode === 401) return new SteamSessionExpiredError();
+  if (res.statusCode >= 300 && res.statusCode <= 399) {
+    const loc = locationHeader(res);
+    if (loc.includes("/login")) return new SteamSessionExpiredError();
+    if (loc.includes("eligibilitycheck")) {
+      return new SteamError(
+        "Steam redirected to the market eligibility check — this account is limited / not trade-eligible",
+      );
+    }
   }
   return new HttpStatusError(res.statusCode, undefined, res.body);
 }
@@ -67,12 +74,4 @@ export function checkTradeError(html: unknown): void {
   if (typeof html !== "string") return;
   const match = html.match(/<div id="error_msg">\s*([^<]+)\s*<\/div>/);
   if (match?.[1]) throw new SteamError(match[1].trim());
-}
-
-export function checkJsonSessionExpired(body: unknown): void {
-  if (!body || typeof body !== "object") return;
-  const obj = body as Record<string, unknown>;
-  if (obj.needsauth === true || obj.logged_in === false) {
-    throw new SteamSessionExpiredError();
-  }
 }

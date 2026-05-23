@@ -6,7 +6,7 @@ import { ConfirmationError, SteamError, SteamSessionExpiredError } from "../core
 import type { OfferTarget, RawAsset, RawCEconTradeOffer, TradeItem } from "../core/types.js";
 import { httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
-import type { EconItem } from "../models/EconItem.js";
+import { buildItem, type EconItem, type RawDescription } from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
 import { parseStrError } from "./strError.js";
 import type { TradeNamespace } from "./TradeNamespace.js";
@@ -57,6 +57,9 @@ export class TradeOffer {
   created: Date | undefined;
   updated: Date | undefined;
   expires: Date | undefined;
+  fromRealTimeTrade = false;
+  // Offer with missing item names (descriptions not ready) or no items; polling must not advance its cutoff past it.
+  glitched = false;
   private countering: string | undefined;
 
   constructor(
@@ -68,7 +71,12 @@ export class TradeOffer {
     this.id = init.id;
   }
 
-  static fromData(deps: TradeOfferDeps, raw: RawCEconTradeOffer): TradeOffer {
+  // `descriptions` (from get_descriptions=1) enriches each item into a full EconItem; glitch detection needs the names.
+  static fromData(
+    deps: TradeOfferDeps,
+    raw: RawCEconTradeOffer,
+    descriptions?: Map<string, RawDescription>,
+  ): TradeOffer {
     if (!raw.accountid_other) {
       throw new SteamError(`Trade offer ${raw.tradeofferid} is missing a partner accountid`);
     }
@@ -77,15 +85,32 @@ export class TradeOffer {
     offer.message = raw.message ?? "";
     offer.state = raw.trade_offer_state;
     offer.isOurOffer = raw.is_our_offer;
-    offer.itemsToGive = (raw.items_to_give ?? []).map(toTradeItem);
-    offer.itemsToReceive = (raw.items_to_receive ?? []).map(toTradeItem);
+    offer.fromRealTimeTrade = raw.from_real_time_trade ?? false;
+    const mapItem = (a: RawAsset): TradeItem =>
+      descriptions
+        ? buildItem(a, descriptions.get(`${a.appid}_${a.classid}_${a.instanceid}`), [], a.contextid)
+        : toTradeItem(a);
+    offer.itemsToGive = (raw.items_to_give ?? []).map(mapItem);
+    offer.itemsToReceive = (raw.items_to_receive ?? []).map(mapItem);
     offer.confirmationMethod = raw.confirmation_method ?? EConfirmationMethod.None;
     if (raw.tradeid) offer.tradeID = raw.tradeid;
     if (raw.escrow_end_date) offer.escrowEnds = new Date(raw.escrow_end_date * 1000);
     if (raw.time_created) offer.created = new Date(raw.time_created * 1000);
     if (raw.time_updated) offer.updated = new Date(raw.time_updated * 1000);
     if (raw.expiration_time) offer.expires = new Date(raw.expiration_time * 1000);
+
+    const allItems = [...offer.itemsToGive, ...offer.itemsToReceive];
+    offer.glitched =
+      allItems.length === 0 ||
+      (descriptions !== undefined && allItems.some((i) => !(i as EconItem).name));
     return offer;
+  }
+
+  // Faithful to upstream itemEquals: same appid + contextid + assetid.
+  containsItem(item: { appid: number; contextid: string; assetid: string }): boolean {
+    return [...this.itemsToGive, ...this.itemsToReceive].some(
+      (i) => i.appid === item.appid && i.contextid === item.contextid && i.assetid === item.assetid,
+    );
   }
 
   give(items: TradeItem[]): this {
@@ -112,8 +137,7 @@ export class TradeOffer {
 
     await this.deps.session.getAccessToken();
     const sessionid = await this.deps.http.getSessionId();
-    // Best-effort: acknowledge the 2025 trade-protection notice so send isn't blocked.
-    // Tolerate benign ack failures, but don't mask an expired session.
+    // Acknowledge the 2025 trade-protection notice so send isn't blocked; tolerate ack failures but not an expired session.
     await this.deps.confirmations.acknowledgeTradeProtection().catch((err) => {
       if (err instanceof SteamSessionExpiredError) throw err;
     });
@@ -212,8 +236,7 @@ export class TradeOffer {
       return "needs_confirmation";
     }
 
-    // The accept response doesn't flag escrow; re-read the offer to tell a held trade
-    // from a settled one (best-effort — server-side reconcile is the backstop).
+    // The accept response doesn't flag escrow; re-read to distinguish a held trade from a settled one.
     this.state = ETradeOfferState.Accepted;
     try {
       const refreshed = await this.deps.trade.getTradeOffer(this.id);
@@ -292,7 +315,12 @@ export class TradeOffer {
     tradableOnly?: boolean,
   ): Promise<EconItem[]> {
     const target = this.partnerTarget();
-    return this.deps.trade.getInventory(target, appid, contextid, tradableOnly);
+    return this.deps.trade.getInventory(
+      target,
+      appid,
+      contextid,
+      tradableOnly !== undefined ? { tradableOnly } : {},
+    );
   }
 
   private partnerTarget(): OfferTarget {
@@ -327,9 +355,9 @@ function toAsset(item: TradeItem): {
 
 function toTradeItem(raw: RawAsset): TradeItem {
   return {
-    appid: Number(raw.appid),
-    contextid: String(raw.contextid),
-    assetid: String(raw.assetid),
+    appid: raw.appid,
+    contextid: raw.contextid,
+    assetid: raw.assetid,
     amount: Number(raw.amount) || 1,
   };
 }

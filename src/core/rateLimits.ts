@@ -1,17 +1,12 @@
-// Per-endpoint rate-limit config, from live profiling (Steam doesn't send Retry-After).
-// Two shapes Steam actually uses:
-//   window — fixed window: `max` calls per `windowMs` (e.g. partnerinventory).
-//   bucket — token bucket: `capacity` burst, 1 token refills every `refillMs` (e.g. GetTradeHistory).
-// null = not measured yet.
+// Per-endpoint rate-limit config, from live profiling (Steam doesn't send Retry-After). null = not measured yet.
+//   window — `max` calls per `windowMs`.   bucket — `capacity` burst, 1 token refills every `refillMs`.
 export type RateLimit =
   | { type: "window"; windowMs: number; max: number }
   | { type: "bucket"; capacity: number; refillMs: number };
 
 export const RATE_LIMITS = {
-  // steamcommunity.com endpoints
   partnerInventory: { type: "window", windowMs: 120_000, max: 30 },
   inventory: null,
-  // IEconService methods
   GetTradeHistory: { type: "bucket", capacity: 25, refillMs: 15_000 },
   GetTradeOffer: { type: "bucket", capacity: 3750, refillMs: 5 },
   GetTradeOffers: { type: "bucket", capacity: 85, refillMs: 125 },
@@ -27,7 +22,6 @@ function retryAfterMs(limit: RateLimit | null): number | null {
 }
 
 // Retry-after hint (ms) per endpoint: one token for a bucket, the full window otherwise.
-// Typed property access, e.g. RETRY_AFTER.inventory.
 export const RETRY_AFTER = Object.fromEntries(
   Object.entries(RATE_LIMITS).map(([key, limit]) => [key, retryAfterMs(limit)]),
 ) as Record<RateLimitedEndpoint, number | null>;

@@ -12,7 +12,7 @@ async function main() {
   if (!existsSync("./bot.refreshtoken")) throw new Error("missing ./bot.refreshtoken");
   const refreshToken = readFileSync("./bot.refreshtoken", "utf8").trim();
 
-  const bot = await SteamMobile.fromRefreshToken(refreshToken);
+  const bot = await new SteamMobile({ refreshToken }).login();
   bot.on("debug", (m) => console.log("[debug]", m));
 
   const cs2 = await bot.community.getInventory(730, "2", { steamId: PUBLIC_STEAMID });
@@ -20,7 +20,9 @@ async function main() {
   console.log(`CS2 730/2: ${cs2.length} items, ${withFloat.length} with float`);
   const sample = withFloat[0];
   if (sample) {
-    console.log(`  e.g. ${sample.market_hash_name} — seed=${seedOf(sample)} float=${floatOf(sample)}`);
+    console.log(
+      `  e.g. ${sample.market_hash_name} — seed=${seedOf(sample)} float=${floatOf(sample)}`,
+    );
   }
 
   const rust = await bot.community.getInventory(252490, "2", { steamId: PUBLIC_STEAMID });
@@ -30,7 +32,9 @@ async function main() {
 
   const partner = await bot.trade.getInventory({ steamId: PARTNER_STEAMID }, 730, "2");
   const partnerFloat = partner.filter((i) => floatOf(i) !== undefined);
-  console.log(`Partner 730/2 (via /partnerinventory/): ${partner.length} items, ${partnerFloat.length} with float`);
+  console.log(
+    `Partner 730/2 (via /partnerinventory/): ${partner.length} items, ${partnerFloat.length} with float`,
+  );
   const psample = partnerFloat[0];
   if (psample) console.log(`  e.g. ${psample.market_hash_name} — float=${floatOf(psample)}`);
 

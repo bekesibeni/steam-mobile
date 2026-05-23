@@ -3,15 +3,18 @@ import { describe, expect, it } from "vitest";
 import { ConfirmationManager } from "../src/community/confirmations.js";
 import { EConfirmationType } from "../src/core/enums.js";
 import { ConfirmationError } from "../src/core/errors.js";
+import { ANDROID_PROFILE, IOS_PROFILE } from "../src/core/mobileProfile.js";
 import type { HttpClient } from "../src/http/HttpClient.js";
 
 interface Recorded {
   url: string;
   searchParams: Record<string, unknown> | undefined;
+  multipart?: { name: string; value: string }[] | undefined;
 }
 
 class FakeHttp {
   calls: Recorded[] = [];
+  posts: Recorded[] = [];
   private body: unknown = {};
 
   setBody(body: unknown): void {
@@ -24,6 +27,14 @@ class FakeHttp {
 
   async get(url: string, opts: { searchParams?: Record<string, unknown> }) {
     this.calls.push({ url, searchParams: opts.searchParams });
+    return { statusCode: 200, headers: {}, body: this.body };
+  }
+
+  async post(
+    url: string,
+    opts: { searchParams?: Record<string, unknown>; multipart?: { name: string; value: string }[] },
+  ) {
+    this.posts.push({ url, searchParams: opts.searchParams, multipart: opts.multipart });
     return { statusCode: 200, headers: {}, body: this.body };
   }
 }
@@ -49,7 +60,12 @@ describe("ConfirmationManager.getConfirmations", () => {
         },
       ],
     });
-    const mgr = new ConfirmationManager(http as unknown as HttpClient, STEAM_ID, "secret");
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      "secret",
+      ANDROID_PROFILE,
+    );
 
     const confs = await mgr.getConfirmations(1700000000, "thekey");
     expect(confs).toHaveLength(1);
@@ -71,10 +87,30 @@ describe("ConfirmationManager.getConfirmations", () => {
     expect(String(params.p)).toMatch(/^android:/);
   });
 
+  it("sends a bare uppercase-UUID device id for the iOS profile", async () => {
+    const http = new FakeHttp();
+    http.setBody({ success: true, conf: [] });
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      "secret",
+      IOS_PROFILE,
+    );
+    await mgr.getConfirmations(1, "k");
+    expect(String(http.calls[0]!.searchParams!.p)).toMatch(
+      /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/,
+    );
+  });
+
   it("uses the tag from a key object", async () => {
     const http = new FakeHttp();
     http.setBody({ success: true, conf: [] });
-    const mgr = new ConfirmationManager(http as unknown as HttpClient, STEAM_ID, "secret");
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      "secret",
+      ANDROID_PROFILE,
+    );
     await mgr.getConfirmations(123, { tag: "list", key: "k2" });
     expect(http.calls[0]!.searchParams!.tag).toBe("list");
     expect(http.calls[0]!.searchParams!.k).toBe("k2");
@@ -83,15 +119,64 @@ describe("ConfirmationManager.getConfirmations", () => {
   it("throws ConfirmationError when success is false", async () => {
     const http = new FakeHttp();
     http.setBody({ success: false, message: "Oops" });
-    const mgr = new ConfirmationManager(http as unknown as HttpClient, STEAM_ID, "secret");
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      "secret",
+      ANDROID_PROFILE,
+    );
     await expect(mgr.getConfirmations(1, "k")).rejects.toThrow(/Oops/);
+  });
+});
+
+describe("ConfirmationManager.respondToConfirmation", () => {
+  it("POSTs to multiajaxop with multipart cid[]/ck[] and op in the query", async () => {
+    const http = new FakeHttp();
+    http.setBody({ success: true });
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      "secret",
+      IOS_PROFILE,
+    );
+
+    await mgr.respondToConfirmation("777", "nonce777", 123, { tag: "accept", key: "kk" }, true);
+
+    expect(http.posts).toHaveLength(1);
+    const post = http.posts[0]!;
+    expect(post.url).toBe("https://steamcommunity.com/mobileconf/multiajaxop");
+    expect(post.searchParams!.op).toBe("allow");
+    expect(post.searchParams!.tag).toBe("accept");
+    expect(post.multipart).toEqual([
+      { name: "cid[]", value: "777" },
+      { name: "ck[]", value: "nonce777" },
+    ]);
+  });
+
+  it("throws ConfirmationError when the action fails", async () => {
+    const http = new FakeHttp();
+    http.setBody({ success: false, message: "nope" });
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      "secret",
+      ANDROID_PROFILE,
+    );
+    await expect(
+      mgr.respondToConfirmation("1", "k", 1, { tag: "cancel", key: "kk" }, false),
+    ).rejects.toThrow(/nope/);
   });
 });
 
 describe("ConfirmationManager.acceptConfirmationForObject", () => {
   it("requires an identitySecret", async () => {
     const http = new FakeHttp();
-    const mgr = new ConfirmationManager(http as unknown as HttpClient, STEAM_ID, undefined);
+    const mgr = new ConfirmationManager(
+      http as unknown as HttpClient,
+      STEAM_ID,
+      undefined,
+      ANDROID_PROFILE,
+    );
     await expect(mgr.acceptConfirmationForObject("999")).rejects.toBeInstanceOf(ConfirmationError);
     expect(http.calls).toHaveLength(0);
   });

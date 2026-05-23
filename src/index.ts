@@ -1,16 +1,39 @@
+export { AuthClient } from "./auth/AuthClient.js";
+export {
+  CredentialSession,
+  type CredentialSessionEvents,
+  type CredentialStartOptions,
+} from "./auth/CredentialSession.js";
+export {
+  type LoginResult,
+  type LoginWithCredentialsOptions,
+  loginWithCredentials,
+} from "./auth/loginWithCredentials.js";
 export type { GetInventoryOptions, UserCheck } from "./community/CommunityNamespace.js";
 export { CommunityNamespace } from "./community/CommunityNamespace.js";
 export { type Confirmation, ConfirmationManager } from "./community/confirmations.js";
 export { DEFAULT_CONTEXTID, LANG, URLS } from "./core/constants.js";
 export {
+  EAuthSessionGuardType,
+  EAuthTokenPlatformType,
+  EAuthTokenRevokeAction,
   EConfirmationMethod,
   EConfirmationType,
   EOfferFilter,
   EResult,
+  ESessionPersistence,
+  ETokenRenewalType,
   ETradeOfferState,
   ETradeStatus,
 } from "./core/enums.js";
 export * from "./core/errors.js";
+export {
+  ANDROID_PROFILE,
+  IOS_PROFILE,
+  type MobilePlatform,
+  type MobileProfile,
+  resolveMobileProfile,
+} from "./core/mobileProfile.js";
 export {
   RATE_LIMITS,
   type RateLimit,
@@ -45,11 +68,15 @@ export {
   AccessTokenError,
   decodeJwt,
   type JwtPayload,
-  type MintResult,
-  mintAccessToken,
-  type ProtoPost,
   secondsUntilExpiry,
 } from "./session/tokens.js";
+export {
+  DEFAULT_POLL_FULL_UPDATE_INTERVAL,
+  DEFAULT_POLL_INTERVAL,
+  Poller,
+  type PollSource,
+} from "./trade/polling.js";
+export type { PollData, PollOptions, TradeEvents } from "./trade/pollTypes.js";
 export { TradeNamespace } from "./trade/TradeNamespace.js";
 export {
   type AcceptResult,

@@ -18,10 +18,10 @@
  *
  * Run:  npx tsx ratelimit-test.ts
  */
-import { EAuthSessionGuardType, EAuthTokenPlatformType, LoginSession } from "steam-session";
-import SteamTotp from "steam-totp";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+import * as SteamTotp from "../src/crypto/steamTotp.js";
 import { STEAM } from "./env.js";
+import { login as sharedLogin } from "./login.js";
 
 // ─── CONFIG ─────────────────────────────────────────────────────────────────────────────
 const CONFIG = {
@@ -68,49 +68,17 @@ interface Endpoint {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const cookieHeader = (cookies: string[]) => cookies.map((c) => c.split(";")[0]).join("; ");
 
-// ─── login (refresh token preferred → cheap & avoids the auth rate limit) ─────────────────
+// ─── login ────────────────────────────────────────────────────────────────────────────────
+// Raw fetch() probes below need the proxy on the GLOBAL dispatcher (the shared helper's own
+// requests go through proxy-agent independently). Then delegate auth to the shared helper.
 async function login(): Promise<Ctx> {
   if (CONFIG.proxy) {
     const { ProxyAgent, setGlobalDispatcher } = await import("undici");
     setGlobalDispatcher(new ProxyAgent(CONFIG.proxy));
     console.log("[proxy] endpoint requests routed through proxy");
   }
-
-  const session = new LoginSession(
-    EAuthTokenPlatformType.MobileApp,
-    CONFIG.proxy ? { httpProxy: CONFIG.proxy } : undefined,
-  );
-
-  // Path 1: saved refresh token → just mint an access token (1 call, no TOTP, no 429 risk).
-  if (existsSync(CONFIG.refreshTokenFile)) {
-    const token = readFileSync(CONFIG.refreshTokenFile, "utf8").trim();
-    if (token) {
-      session.refreshToken = token;
-      await session.refreshAccessToken();
-      const cookies = await session.getWebCookies();
-      console.log("[login] used saved refresh token");
-      return { steamID: session.steamID.getSteamID64(), accessToken: session.accessToken!, cookieHeader: cookieHeader(cookies) };
-    }
-  }
-
-  // Path 2: credential login (expensive, rate-limited) → persist the refresh token after.
-  const authed = new Promise<void>((resolve, reject) => {
-    session.on("authenticated", () => resolve());
-    session.on("error", reject);
-    session.on("timeout", () => reject(new Error("login timeout")));
-  });
-  const code = SteamTotp.generateAuthCode(CONFIG.sharedSecret);
-  const start = await session.startWithCredentials({ accountName: CONFIG.username, password: CONFIG.password, steamGuardCode: code });
-  if (start.actionRequired && (start.validActions ?? []).some((a) => a.type === EAuthSessionGuardType.DeviceCode)) {
-    await session.submitSteamGuardCode(code);
-  }
-  await authed;
-  if (session.refreshToken) {
-    writeFileSync(CONFIG.refreshTokenFile, session.refreshToken);
-    console.log(`[login] credential login OK — refresh token saved to ${CONFIG.refreshTokenFile}`);
-  }
-  const cookies = await session.getWebCookies();
-  return { steamID: session.steamID.getSteamID64(), accessToken: session.accessToken!, cookieHeader: cookieHeader(cookies) };
+  const { steamID, accessToken, cookieHeader } = await sharedLogin();
+  return { steamID, accessToken, cookieHeader };
 }
 
 // ─── endpoint definitions ─────────────────────────────────────────────────────────────────
@@ -123,7 +91,11 @@ const ENDPOINTS: Record<string, Endpoint> = {
         `&get_sent_offers=1&get_received_offers=1&active_only=1&time_historical_cutoff=0`;
       const res = await fetch(url);
       const eresult = res.headers.get("x-eresult");
-      return { status: res.status, limited: res.status === 429 || eresult === "84", note: `x-eresult=${eresult}` };
+      return {
+        status: res.status,
+        limited: res.status === 429 || eresult === "84",
+        note: `x-eresult=${eresult}`,
+      };
     },
   },
   ownInventory: {
@@ -142,7 +114,11 @@ const ENDPOINTS: Record<string, Endpoint> = {
         `&tradeid=${TRADE_ID}&get_descriptions=1&language=english`;
       const res = await fetch(url);
       const eresult = res.headers.get("x-eresult");
-      return { status: res.status, limited: res.status === 429 || eresult === "84", note: `x-eresult=${eresult}` };
+      return {
+        status: res.status,
+        limited: res.status === 429 || eresult === "84",
+        note: `x-eresult=${eresult}`,
+      };
     },
   },
   mobileconfList: {
@@ -172,7 +148,9 @@ async function probeEndpoint(ep: Endpoint, ctx: Ctx): Promise<void> {
     if (r.limited) {
       limitedAtRequest = i;
       const windowMs = Date.now() - start;
-      console.log(`  ⛔ LIMITED on request #${i}: ${success} succeeded in ${(windowMs / 1000).toFixed(1)}s before block (status=${r.status} ${r.note ?? ""})`);
+      console.log(
+        `  ⛔ LIMITED on request #${i}: ${success} succeeded in ${(windowMs / 1000).toFixed(1)}s before block (status=${r.status} ${r.note ?? ""})`,
+      );
       break;
     }
     if (r.status === 200) success++;
@@ -180,19 +158,25 @@ async function probeEndpoint(ep: Endpoint, ctx: Ctx): Promise<void> {
     if (BURST_DELAY_MS) await sleep(BURST_DELAY_MS);
   }
   if (limitedAtRequest === -1) {
-    console.log(`  ✅ no 429 within ${MAX_REQUESTS} requests (${success} ok). Limit is above the cap, or window-based — raise MAX_REQUESTS / lower BURST_DELAY_MS.`);
+    console.log(
+      `  ✅ no 429 within ${MAX_REQUESTS} requests (${success} ok). Limit is above the cap, or window-based — raise MAX_REQUESTS / lower BURST_DELAY_MS.`,
+    );
     return;
   }
 
   // Phase 2 — measure the reset window.
-  console.log(`  ⏳ measuring reset (probe every ${RESET_PROBE_INTERVAL_MS / 1000}s, max ${RESET_MAX_WAIT_MS / 60000}min)…`);
+  console.log(
+    `  ⏳ measuring reset (probe every ${RESET_PROBE_INTERVAL_MS / 1000}s, max ${RESET_MAX_WAIT_MS / 60000}min)…`,
+  );
   const limitedSince = Date.now();
   while (Date.now() - limitedSince < RESET_MAX_WAIT_MS) {
     await sleep(RESET_PROBE_INTERVAL_MS);
     const r = await ep.request(ctx);
     const waited = (Date.now() - limitedSince) / 1000;
     if (!r.limited && r.status === 200) {
-      console.log(`  🔄 RECOVERED after ~${waited.toFixed(0)}s (±${RESET_PROBE_INTERVAL_MS / 1000}s — sliding windows make this approximate)`);
+      console.log(
+        `  🔄 RECOVERED after ~${waited.toFixed(0)}s (±${RESET_PROBE_INTERVAL_MS / 1000}s — sliding windows make this approximate)`,
+      );
       return;
     }
     console.log(`     still limited at ${waited.toFixed(0)}s (status=${r.status})`);

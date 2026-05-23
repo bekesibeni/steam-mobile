@@ -1,6 +1,6 @@
 import { URLS } from "../core/constants.js";
 import { EResult } from "../core/enums.js";
-import { RateLimitError, SteamError } from "../core/errors.js";
+import { RateLimitError, SteamError, SteamSessionExpiredError } from "../core/errors.js";
 import { httpError } from "./checkers.js";
 import type { HttpClient } from "./HttpClient.js";
 
@@ -29,9 +29,12 @@ export class WebApiClient {
     const url = `${URLS.api}/${iface}/${method}/v${version}/`;
     const payload = { ...input, access_token: accessToken };
 
+    // The mobile app tacks origin=SteamMobile onto WebAPI GETs.
     const res = await this.http.request<ApiBody>(httpMethod, url, {
       responseType: "json",
-      ...(httpMethod === "GET" ? { searchParams: payload } : { form: payload }),
+      ...(httpMethod === "GET"
+        ? { searchParams: { ...payload, origin: "SteamMobile" } }
+        : { form: payload }),
     });
 
     if (res.statusCode !== 200) {
@@ -59,6 +62,7 @@ export class WebApiClient {
       const code = Number(eresult);
       const name = EResult[code] ?? "EResult";
       const msg = `${name} (${eresult})${errorMessage ? `: ${errorMessage}` : ""}`;
+      if (code === EResult.NotLoggedOn) throw new SteamSessionExpiredError(msg);
       if (code === EResult.RateLimitExceeded) {
         throw new RateLimitError({
           message: msg,

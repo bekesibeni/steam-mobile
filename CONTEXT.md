@@ -10,7 +10,8 @@
 A new, standalone, modern, fully-typed **ESM TypeScript** library: a **headless Steam *Mobile
 app* client** for trading. It unifies the *web* logic of DoctorMcKay's `steamcommunity` +
 `steam-tradeoffer-manager` into one cohesive package, with **no `steam-user` / no CM binary
-protocol**. Auth is delegated to `steam-session` + `steam-totp` (kept as dependencies).
+protocol**. Credential login, TOTP, and the IAuthenticationService protobufs are all **in-package**
+(M7 removed the `steam-session` and `steam-totp` dependencies — see "Current status").
 
 - **Package name:** `@assetpay/steam-mobile` (scoped/private).
 - **Why "steam-mobile":** it impersonates the Steam mobile app (MobileApp-platform auth,
@@ -21,14 +22,14 @@ protocol**. Auth is delegated to `steam-session` + `steam-totp` (kept as depende
   (no NestJS / Prisma / BullMQ).
 
 ## Current status
-- Decisions locked (below). No library code written yet.
-- Tooling set up: **pnpm** (v11), ESM, `tsx` for running TS. Build scripts decided in
-  `pnpm-workspace.yaml` (`esbuild: true` — needed by tsx; `protobufjs: false` — its postinstall
-  is non-essential; protobufjs is a transitive *runtime* dep via steam-session).
-- Probe scripts present (throwaway, but useful references):
-  - `login-mobile.ts` — MobileApp login + surface probe (`pnpm login:mobile`)
-  - `probe-capabilities.ts` — full capability sweep (`pnpm probe`)
-- **Next step: M1 (session layer).** See Milestones.
+- **M0–M4 + M7 built and live-verified; M5–M6 pending.** Full source under `src/`; 90 unit tests;
+  live gates pass (`pnpm m0`/`m1`/`m7`, `pnpm login`). Detailed, current state lives in the project
+  memory and `~/.claude/plans/abstract-cooking-glacier.md` — this file is background/rationale.
+- **M7 made the package self-sufficient:** in-package credential login (`loginWithCredentials` /
+  `CredentialSession`), vendored Protobuf-ES auth protos (`protobufs/` → `src/protobufs/`), and a
+  vendored `steam-totp` port (`src/crypto/steamTotp.ts`). `steam-session` + `steam-totp` removed.
+- Tooling: **pnpm** (v11), ESM, `tsx`, `tsdown` (build), `biome`, `vitest`, `buf`+`protoc-gen-es`.
+- Probe scripts kept under `debug/` (login-mobile, probe-capabilities, ratelimit-test, m0–m7).
 
 ---
 
@@ -37,9 +38,10 @@ protocol**. Auth is delegated to `steam-session` + `steam-totp` (kept as depende
    `IEconService/GetTradeOffers` (we accept losing the CM's ~few-seconds-faster trigger).
 2. **Platform = `EAuthTokenPlatformType.MobileApp`** (NOT SteamClient, NOT WebBrowser). See
    "Platform decision" for the evidence. SteamClient is fully dropped.
-3. **Depend on `steam-session` (auth/session) + `steam-totp` (codes/confirmation keys).** Do
-   NOT reimplement them — credential login = RSA + protobuf `IAuthenticationService`, the
-   genuinely hard part. The lib "works with" steam-session; it is not standalone for auth.
+3. **~~Depend on steam-session + steam-totp.~~ REVISED in M7:** auth is now in-package. Credential
+   login (RSA + Protobuf-ES `IAuthenticationService`), the mint, mobileconf, TOTP and confirmation
+   keys are all implemented locally (`src/auth`, `src/crypto`, `src/session`). The lib is standalone
+   for auth — only runtime deps are got, proxy-agent, tough-cookie, steamid, @bufbuild/protobuf.
 4. **HTTP stack:** `got` + `proxy-agent` (unified auto-detect http/https/socks) + `tough-cookie`.
    ESM-only, Node 20+. Must set `throwHttpErrors:false`, `retry:{limit:0}`, `decompress:true`.
    Reuse the forks' Steam error/redirect/`sessionExpired` checkers near-verbatim (they're
@@ -178,10 +180,13 @@ First-class replacement for the old `new TradeOffer(...)` + manual id/tradeID ha
 `appid, contextid, assetid, classid, instanceid, amount, market_hash_name, tradable, marketable`
 + CS2/Rust: `float_value, paint_seed, paint_index, pattern, nametag, stickers[], keychains[]`.
 
-### Open API questions (not yet decided)
-- Main class name (working name `SteamTradeClient`; could be `SteamMobile`, `Bot`, etc.).
-- Single `login()` (auto-detect refreshToken vs credentials) vs two factories — leaning single.
-- Keep optional `cancelTime` auto-cancel of stale outgoing offers? (default off.)
+### Resolved API decisions (the sketch above is the original plan; built API differs)
+- Main class is **`SteamMobile`**; construct sync with `new SteamMobile({ refreshToken, … })` then
+  `await bot.login()`. Credential login is a separate standalone `loginWithCredentials({…})` →
+  refresh token (no auto-detect inside `login()`).
+- Inventory: `bot.community.getInventory(appid, contextid?, {steamId?,tradableOnly?})` and
+  `bot.trade.getInventory(target, appid, contextid?, {tradableOnly?})`.
+- `cancelTime` auto-cancel: not built (kept out of scope).
 
 ---
 
@@ -217,13 +222,12 @@ the canonical copies are on GitHub, local copies under assetpay-api/node_modules
 ---
 
 ## Tooling
-- ESM (`"type":"module"`), Node 20+ (dev currently on Node 25). pnpm v11.
-- `pnpm-workspace.yaml` approves builds: `esbuild: true`, `protobufjs: false`.
-- Runtime deps (planned): `steam-session`, `steam-totp`, `steamid`, `got`, `proxy-agent`,
-  `tough-cookie`, `node-html-parser` (confirmations/HTML parsing). Dev: `typescript`, `tsup`
-  (build), `tsx` (run), `vitest`, `@biomejs/biome`, `@types/node`.
-- Profile/persona via community XML — needs an XML parser or regex; `node-html-parser` or
-  `fast-xml-parser` (decide in M6).
+- ESM (`"type":"module"`), Node 24+. pnpm v11.
+- Runtime deps: `got`, `proxy-agent`, `tough-cookie`, `steamid`, `@bufbuild/protobuf`. Dev:
+  `typescript`, `tsdown` (build), `tsx` (run), `vitest`, `@biomejs/biome`, `@bufbuild/buf` +
+  `@bufbuild/protoc-gen-es` (proto codegen), `@types/node`.
+- HTML/XML scraping is done with regex (no parser dep). Profile/persona (M6) will use community
+  XML + IPlayerService.
 
 ## Milestones
 - **M1** Scaffold (src/, tsconfig strict NodeNext, biome, tsup, vitest) + `http/HttpClient`

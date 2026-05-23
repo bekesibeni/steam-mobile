@@ -1,3 +1,5 @@
+import type { RawDescription } from "../models/EconItem.js";
+
 export type OfferTarget =
   | { tradeUrl: string; steamId?: never; token?: never }
   | { steamId: string; token?: string; tradeUrl?: never };
@@ -9,11 +11,6 @@ export interface TradeItem {
   amount?: number;
 }
 
-export interface ProxyOptions {
-  proxy?: string;
-  userAgent?: string;
-}
-
 export interface RawAsset {
   appid: number;
   contextid: string;
@@ -23,6 +20,7 @@ export interface RawAsset {
   amount: string;
   missing?: boolean;
   est_usd?: string;
+  [key: string]: unknown;
 }
 
 export interface RawCEconTradeOffer {
@@ -45,6 +43,6 @@ export interface RawCEconTradeOffer {
 export interface RawGetTradeOffersResponse {
   trade_offers_sent?: RawCEconTradeOffer[];
   trade_offers_received?: RawCEconTradeOffer[];
-  descriptions?: unknown[];
+  descriptions?: RawDescription[];
   next_cursor?: number;
 }
