@@ -9,7 +9,11 @@ export {
   type LoginWithCredentialsOptions,
   loginWithCredentials,
 } from "./auth/loginWithCredentials.js";
-export type { GetInventoryOptions, UserCheck } from "./community/CommunityNamespace.js";
+export type {
+  GetInventoryOptions,
+  SteamProfile,
+  UserCheck,
+} from "./community/CommunityNamespace.js";
 export { CommunityNamespace } from "./community/CommunityNamespace.js";
 export { type Confirmation, ConfirmationManager } from "./community/confirmations.js";
 export { DEFAULT_CONTEXTID, LANG, URLS } from "./core/constants.js";
@@ -70,6 +74,17 @@ export {
   type JwtPayload,
   secondsUntilExpiry,
 } from "./session/tokens.js";
+export {
+  type ExchangeDetails,
+  type ExchangeItem,
+  getTradeHistory,
+  getTradeOffersSummary,
+  getTradeStatus,
+  type TradeHistory,
+  type TradeHistoryEntry,
+  type TradeHistoryOptions,
+  type TradeOffersSummary,
+} from "./trade/exchange.js";
 export {
   DEFAULT_POLL_FULL_UPDATE_INTERVAL,
   DEFAULT_POLL_INTERVAL,

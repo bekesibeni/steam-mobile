@@ -46,3 +46,35 @@ export interface RawGetTradeOffersResponse {
   descriptions?: RawDescription[];
   next_cursor?: number;
 }
+
+// IEconService/GetTradeStatus assets carry where each item LANDED post-trade (new_assetid/contextid).
+export interface RawExchangeAsset {
+  appid: number;
+  contextid: string;
+  assetid: string;
+  classid: string;
+  instanceid: string;
+  amount: string;
+  new_assetid?: string;
+  new_contextid?: string;
+  rollback_new_assetid?: string;
+  rollback_new_contextid?: string;
+  currencyid?: string;
+  [key: string]: unknown;
+}
+
+export interface RawTradeStatus {
+  tradeid: string;
+  steamid_other?: string;
+  time_init: number;
+  time_settlement?: number;
+  status: number;
+  assets_received?: RawExchangeAsset[];
+  assets_given?: RawExchangeAsset[];
+  [key: string]: unknown;
+}
+
+export interface RawGetTradeStatusResponse {
+  trades?: RawTradeStatus[];
+  descriptions?: RawDescription[];
+}

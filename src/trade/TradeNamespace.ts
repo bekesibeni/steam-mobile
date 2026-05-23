@@ -18,6 +18,15 @@ import {
   type RawPartnerInventoryResponse,
 } from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
+import {
+  type ExchangeDetails,
+  getTradeHistory as fetchTradeHistory,
+  getTradeOffersSummary as fetchTradeOffersSummary,
+  getTradeStatus as fetchTradeStatus,
+  type TradeHistory,
+  type TradeHistoryOptions,
+  type TradeOffersSummary,
+} from "./exchange.js";
 import { Poller } from "./polling.js";
 import type { PollData, PollOptions, TradeEvents } from "./pollTypes.js";
 import { TradeOffer, type TradeOfferDeps } from "./TradeOffer.js";
@@ -136,6 +145,21 @@ export class TradeNamespace extends EventEmitter<TradeEvents> {
   async getTradeOffers(filter: EOfferFilter = EOfferFilter.ActiveOnly): Promise<TradeOffer[]> {
     const { sent, received } = await this.getOffers(filter);
     return [...sent, ...received];
+  }
+
+  // Settlement details for a completed/escrowed trade (tradeID, not offer id).
+  getTradeStatus(opts: { tradeId: string }): Promise<ExchangeDetails> {
+    return fetchTradeStatus(this.api, opts.tradeId);
+  }
+
+  // Past trades (newest first); cursor-paginate with startAfterTime/startAfterTradeId while `more`.
+  getTradeHistory(opts?: TradeHistoryOptions): Promise<TradeHistory> {
+    return fetchTradeHistory(this.api, opts);
+  }
+
+  // Counts of pending/new/historical sent & received offers.
+  getTradeOffersSummary(): Promise<TradeOffersSummary> {
+    return fetchTradeOffersSummary(this.api);
   }
 
   // Re-read known offers by id; missing/errored ids are skipped so one can't fail the batch.

@@ -8,6 +8,7 @@ import { httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
 import { buildItem, type EconItem, type RawDescription } from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
+import type { ExchangeDetails } from "./exchange.js";
 import { parseStrError } from "./strError.js";
 import type { TradeNamespace } from "./TradeNamespace.js";
 
@@ -307,6 +308,14 @@ export class TradeOffer {
     next.itemsToReceive = this.itemsToReceive.map((i) => ({ ...i }));
     next.message = this.message;
     return next;
+  }
+
+  // Settlement details once accepted (needs tradeID, set on accept / on a fetched accepted offer).
+  getTradeStatus(): Promise<ExchangeDetails> {
+    if (!this.tradeID) {
+      throw new SteamError("No trade ID — getTradeStatus needs an accepted offer");
+    }
+    return this.deps.trade.getTradeStatus({ tradeId: this.tradeID });
   }
 
   getPartnerInventory(

@@ -58,7 +58,7 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
       profile,
     );
     this.trade = new TradeNamespace(this.api, this.http, this.session, this.confirmations);
-    this.community = new CommunityNamespace(this.http, this.session, this.confirmations);
+    this.community = new CommunityNamespace(this.http, this.session, this.confirmations, this.api);
 
     this.session.on("refreshToken", (token) => this.emit("refreshToken", token));
     this.session.on("sessionExpired", (error) => this.emit("sessionExpired", error));
@@ -79,6 +79,11 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
       this.trade.startPolling(this.polling === true ? {} : this.polling);
     }
     return this;
+  }
+
+  // Existing Web API key, or register one; null if the account is ineligible.
+  ensureApiKey(domain?: string): Promise<string | null> {
+    return this.community.ensureApiKey(domain);
   }
 
   get steamID(): SteamID {

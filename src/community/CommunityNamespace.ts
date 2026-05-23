@@ -7,6 +7,7 @@ import { resolveTarget } from "../core/target.js";
 import type { OfferTarget } from "../core/types.js";
 import { checkCommunityError, httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
+import type { WebApiClient } from "../http/webApi.js";
 import { type EconItem, parseInventory, type RawInventoryResponse } from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
 import type { ConfirmationManager } from "./confirmations.js";
@@ -26,11 +27,23 @@ export interface UserCheck {
   contexts: Record<string, unknown> | null;
 }
 
+export interface SteamProfile {
+  steamId: string;
+  personaName: string;
+  avatar: string;
+  accountCreated: Date | null;
+  tradeBanState: string;
+  isLimited: boolean;
+  vacBanned: boolean;
+  privacyState: string;
+}
+
 export class CommunityNamespace {
   constructor(
     private readonly http: HttpClient,
     private readonly session: SessionManager,
     private readonly confirmations: ConfirmationManager,
+    private readonly api: WebApiClient,
   ) {}
 
   // Escrow hold + probation, scraped from the trade page (mobile token gets AccessDenied on GetTradeHoldDurations).
@@ -90,6 +103,106 @@ export class CommunityNamespace {
     return { url: match[0].replace(/&amp;/g, "&"), token: match[1] };
   }
 
+  // Regenerate our trade URL/token (invalidates the old one).
+  async changeTradeURL(): Promise<{ url: string; token: string }> {
+    await this.session.getAccessToken();
+    const steamId = this.session.steamID.getSteamID64();
+    const sessionid = await this.http.getSessionId();
+    const res = await this.http.post<unknown>(
+      `${URLS.community}/profiles/${steamId}/tradeoffers/newtradeurl`,
+      { responseType: "json", form: { sessionid } },
+    );
+    if (res.statusCode !== 200) throw httpError(res);
+    // Steam returns either a bare JSON string token or { token }.
+    const body = res.body;
+    const token =
+      typeof body === "string" ? body : String((body as { token?: string })?.token ?? "");
+    if (!token) throw new SteamError("Failed to parse the new trade token");
+    const accountId = this.session.steamID.accountid;
+    return { url: `${URLS.community}/tradeoffer/new/?partner=${accountId}&token=${token}`, token };
+  }
+
+  // Profile summary from the community XML (one request). Steam level isn't here — use getSteamLevel().
+  async getProfile(steamId?: string): Promise<SteamProfile> {
+    await this.session.getAccessToken();
+    const id = steamId ?? this.session.steamID.getSteamID64();
+    const res = await this.http.get<string>(`${URLS.community}/profiles/${id}?xml=1`, {
+      responseType: "text",
+    });
+    if (res.statusCode !== 200) throw httpError(res);
+    const xml = res.body;
+    checkCommunityError(xml);
+    if (!xml.includes("<steamID64>")) throw new SteamError("Failed to load the profile XML");
+
+    const memberSince = xmlValue(xml, "memberSince");
+    const created = memberSince ? new Date(memberSince) : null;
+
+    return {
+      steamId: id,
+      personaName: xmlValue(xml, "steamID") ?? "",
+      avatar: xmlValue(xml, "avatarFull") ?? "",
+      accountCreated: created && !Number.isNaN(created.getTime()) ? created : null,
+      tradeBanState: xmlValue(xml, "tradeBanState") ?? "None",
+      isLimited: xmlValue(xml, "isLimitedAccount") === "1",
+      vacBanned: xmlValue(xml, "vacBanned") === "1",
+      privacyState: xmlValue(xml, "privacyState") ?? "",
+    };
+  }
+
+  // Steam level via IPlayerService (accepts the access token — no API key needed).
+  async getSteamLevel(steamId?: string): Promise<number> {
+    const id = steamId ?? this.session.steamID.getSteamID64();
+    const res = await this.api.call<{ response?: { player_level?: number } }>({
+      httpMethod: "GET",
+      iface: "IPlayerService",
+      method: "GetSteamLevel",
+      input: { steamid: id },
+    });
+    return res.response?.player_level ?? 0;
+  }
+
+  // Existing Web API key, else register one (auto-confirms via identitySecret). null if ineligible.
+  async ensureApiKey(domain = "assetpay.gg"): Promise<string | null> {
+    await this.session.getAccessToken();
+    const res = await this.http.get<string>(`${URLS.community}/dev/apikey?l=english`, {
+      responseType: "text",
+    });
+    if (res.statusCode !== 200) throw httpError(res);
+    const body = res.body;
+    const key = body.match(/<p>Key:\s*([0-9A-F]+)<\/p>/i)?.[1];
+    if (key) return key;
+    if (
+      /validated email address|Steam Guard Mobile Authenticator|<h2>Access Denied<\/h2>/i.test(body)
+    ) {
+      return null;
+    }
+    return this.requestApiKey(domain);
+  }
+
+  private async requestApiKey(domain: string, requestId = "0"): Promise<string | null> {
+    const sessionid = await this.http.getSessionId();
+    const res = await this.http.post<{ api_key?: string; request_id?: string }>(
+      `${URLS.community}/dev/requestkey`,
+      {
+        responseType: "json",
+        form: { domain, request_id: requestId, sessionid, agreeToTerms: "true" },
+      },
+    );
+    if (res.statusCode !== 200) throw httpError(res);
+    const body = res.body ?? {};
+    if (body.api_key) return body.api_key;
+    // Pending: Steam wants a mobile confirmation. Auto-accept it (needs identitySecret), then retry.
+    if (body.request_id) {
+      try {
+        await this.confirmations.acceptConfirmationForObject(body.request_id);
+      } catch {
+        return null;
+      }
+      return this.requestApiKey(domain, body.request_id);
+    }
+    return null;
+  }
+
   async getInventory(
     appid: number,
     contextid: string = DEFAULT_CONTEXTID,
@@ -136,6 +249,12 @@ function parseInventoryError(error: string): SteamError {
   const match = error.match(/^(.+) \((\d+)\)$/);
   if (match?.[1]) return new SteamError(match[1], { eresult: Number(match[2]) });
   return new SteamError(error);
+}
+
+// Read a profile-XML element's text, tolerating optional CDATA wrapping.
+function xmlValue(xml: string, tag: string): string | undefined {
+  const m = xml.match(new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tag}>`));
+  return m?.[1]?.trim() || undefined;
 }
 
 function matchInt(html: string, re: RegExp): number | null {

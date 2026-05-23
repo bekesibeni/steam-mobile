@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CommunityNamespace } from "../src/community/CommunityNamespace.js";
 import type { ConfirmationManager } from "../src/community/confirmations.js";
 import type { HttpClient } from "../src/http/HttpClient.js";
+import type { WebApiClient } from "../src/http/webApi.js";
 import type { SessionManager } from "../src/session/SessionManager.js";
 
 const SELF = new SteamID("76561198000000000");
@@ -27,6 +28,7 @@ function makeCommunity(html: string): { community: CommunityNamespace; http: Fak
     http as unknown as HttpClient,
     session,
     {} as unknown as ConfirmationManager,
+    {} as unknown as WebApiClient,
   );
   return { community, http };
 }
