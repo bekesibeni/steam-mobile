@@ -941,9 +941,11 @@ const bot = new SteamMobile({
 
 - **MobileApp-only.** No real-time CM push — offer detection is polling. No Game Coordinator (item data
   comes from the web `asset_properties`). No chat/presence.
-- **Limited accounts** can't send trades, use the market, or get a Web API key. The library surfaces
-  this clearly: `getProfile().isLimited`, `ensureApiKey()` → `null`, and a typed eligibility error on
-  trade-page features.
+- **Limited accounts** (haven't spent the $5 that lifts Steam's anti-spam limit) **can still trade** —
+  subject to the usual Steam Guard / escrow holds — but can't use the Community Market or generate a
+  Web API key. This library doesn't use a Web API key (it authenticates with the mobile access token),
+  so limited accounts can send and receive trades through it. `getProfile().isLimited` surfaces the
+  state; `ensureApiKey()` returns `null`.
 - **English only** (`l=english`) by design — no localization dependency.
 - **Settlement is read-only.** `getTradeStatus` surfaces Steam's `new_assetid`/`new_contextid`;
   reconciling items by inventory diff (the race-prone part) is left to your server, which has the

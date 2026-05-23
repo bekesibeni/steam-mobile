@@ -57,6 +57,7 @@ lifecycle: lazy access-token mint/renew, refresh-token rotation (emits `refreshT
 trade events on the root. **Construction is synchronous** (no network; `steamID` comes from the
 refresh-token JWT); `await bot.login()` is the only network step (mints the token, applies the cookie,
 auto-starts polling if configured). The two namespaces:
+
 - `bot.trade` (`src/trade/`) — `TradeNamespace` (an EventEmitter) + `TradeOffer` (fluent
   give/receive/send/accept/cancel/confirm/counter). `polling.ts` is the faithful McKay poll loop
   (active poll + periodic full sweep, glitched-offer cutoff blocking, diff vs persisted `pollData`).
@@ -109,9 +110,11 @@ Debug scripts read a gitignored `.env` and reuse `./bot.refreshtoken` (also giti
 `pnpm bootstrap` (credential login → save token), `pnpm smoke` (read-only health check of the whole API
 surface), `pnpm watch` (live trade-event watcher), `pnpm trade` (gated send→confirm→cancel; needs
 `SEND=1 PARTNER_TRADE_URL=…`). Constraints when running live:
-- The current test account is **limited** (can't send trades, use the market, or get an API key), so
-  send/confirm/cancel, real API-key registration, and `changeTradeURL` correctness need a non-limited
-  bot to verify; their code paths are complete and offline-tested.
+
+- The current test account is **limited** (hasn't spent the $5 that lifts Steam's anti-spam limit).
+  Limited accounts **can still trade** (subject to Steam Guard / escrow holds) but can't use the market
+  or register a Web API key. So send/confirm/cancel just need a live trade partner, while real API-key
+  registration needs a non-limited bot; their code paths are complete and offline-tested.
 - Access tokens are **IP-bound** (~24h). **Do not run aggressive rate-limit profiling** — keep live
   tests to gentle, single calls (prior profiling caused an IP edge-block).
 - Secrets (`.env`, `bot.refreshtoken`, `debug/ratelimit-history.ts`) are gitignored — keep them out of
