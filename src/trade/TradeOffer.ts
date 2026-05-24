@@ -55,6 +55,9 @@ export class TradeOffer {
   tradeID: string | undefined;
   confirmationMethod: EConfirmationMethod = EConfirmationMethod.None;
   escrowEnds: Date | undefined;
+  // 2025 trade-protection hold end (== trade time_settlement); set once Accepted. Distinct from escrowEnds.
+  settlementDate: Date | undefined;
+  delaySettlement = false;
   created: Date | undefined;
   updated: Date | undefined;
   expires: Date | undefined;
@@ -96,6 +99,8 @@ export class TradeOffer {
     offer.confirmationMethod = raw.confirmation_method ?? EConfirmationMethod.None;
     if (raw.tradeid) offer.tradeID = raw.tradeid;
     if (raw.escrow_end_date) offer.escrowEnds = new Date(raw.escrow_end_date * 1000);
+    if (raw.settlement_date) offer.settlementDate = new Date(raw.settlement_date * 1000);
+    offer.delaySettlement = raw.delay_settlement ?? false;
     if (raw.time_created) offer.created = new Date(raw.time_created * 1000);
     if (raw.time_updated) offer.updated = new Date(raw.time_updated * 1000);
     if (raw.expiration_time) offer.expires = new Date(raw.expiration_time * 1000);

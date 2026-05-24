@@ -183,6 +183,16 @@ Mints the access token (failing fast if the refresh token is dead), applies the 
 login cookie, and — if you passed `polling` — starts the poll loop. Returns a `Promise` that resolves
 to the `SteamMobile` instance itself, so you can write `const bot = await new SteamMobile(opts).login()`.
 
+### reauthenticate(credentials)
+
+- `credentials` — A `ReauthenticateOptions`: the same fields as [`loginWithCredentials`](#loginwithcredentialsoptions) **except** `proxy` / `mobileProfile`, which are reused from this instance.
+
+Recovers a **dead or revoked** refresh token — one the library can no longer renew (past its ~211-day
+life, after a password change, or a Steam revocation). Runs a fresh credential login, swaps the new
+refresh token in place, re-mints the access token, and re-emits [`refreshToken`](#event-refreshtoken) so
+you can persist it. **Rejects if the credentials are for a different account** than this instance.
+Returns `Promise<void>`. Pair it with the [`sessionExpired`](#event-sessionexpired) event.
+
 ### ensureApiKey(\[domain])
 
 - `domain` — Optional. The domain to register the key under (default `"assetpay.gg"`). Steam's API-key `domain` is a hostname label, not a URL.
@@ -243,8 +253,9 @@ the new value** — the old one stops working.
 
 - `error` — A `SteamSessionExpiredError`.
 
-Emitted when the refresh token is rejected or expired and the session can no longer be renewed. This is
-your cue to re-authenticate (e.g. with `loginWithCredentials`).
+Emitted when the refresh token is rejected or expired and the session can no longer be renewed. It fires
+only on a **confirmed-terminal** auth failure (not a transient blip), so it's safe to trigger re-auth
+on: call [`bot.reauthenticate(credentials)`](#reauthenticatecredentials).
 
 ---
 
@@ -348,16 +359,30 @@ For your *own* inventory, prefer [`bot.community.getInventory`](#getinventoryapp
   - `pollInterval` — Active-poll cadence in ms (default `10000`).
   - `pollFullUpdateInterval` — Full-sweep cadence in ms (default `300000`).
   - `pollData` — A saved [`PollData`](#polldata) snapshot to resume from (so a restart doesn't re-emit known offers).
+  - `store` — A [`PollDataStore`](#polldatastore) loaded on start and saved after each changed tick (e.g. Redis-backed). Default: in-memory only.
+  - `maxAgeMs` — Retention window in ms (default `2592000000`, 30d). Terminal offers older than this are pruned from the snapshot, and the full sweep is bounded to this window.
 
 Starts the poll loop. The library does an **active poll** (recently-changed offers only) on the short
-interval and a periodic **full sweep** (all offers, to catch backdated state changes) on the long
-interval. State changes are diffed against the last snapshot and surfaced as [events](#trade-events). The
-loop never dies on a rate limit — it backs off and resumes. Calling this again replaces the running
-loop.
+interval and a periodic **full sweep** (offers updated within the retention window, to catch backdated
+state changes) on the long interval. State changes are diffed against the last snapshot and surfaced as
+[events](#trade-events). The loop never dies on a rate limit — it backs off and resumes. Calling this
+again replaces the running loop.
 
 ### stopPolling()
 
 Stops the poll loop.
+
+### pollOnce(\[options])
+
+- `options` — Optional. A [`PollOptions`](#polloptions) (used to configure the lazily-created poller on first call) plus `forceFull?` to force a full sweep this cycle.
+
+Runs a **single, timer-less** poll cycle, for driving cadence from an external scheduler (e.g. a BullMQ
+cron) instead of the built-in timer. Returns `Promise<{ changes: `[`PollChange`](#pollchange)`[]; pollData: PollData }>`.
+With a [`store`](#polldatastore) it loads the snapshot, diffs, emits the usual [events](#trade-events),
+saves, and returns the diff. `lastFullUpdate` is persisted inside `pollData`, so a fresh instance per
+job still keeps the full-sweep cadence (it won't degrade to a full sweep every call). The poller is
+created lazily and reused, so pass config once. Unlike the timer loop, this **throws** on a fetch
+failure so your scheduler can handle it.
 
 ### pollData (getter)
 
@@ -439,7 +464,9 @@ offers with [`bot.trade.createOffer`](#createoffertarget); fetch them with
 - `isOurOffer` — `true` if we sent it, `false` if we received it.
 - `tradeID` — The trade id once accepted (`string`), or `undefined`. Needed for [`getTradeStatus()`](#gettradestatus).
 - `confirmationMethod` — An [`EConfirmationMethod`](#econfirmationmethod) (`MobileApp`, `Email`, or `None`).
-- `escrowEnds` — A `Date` when the escrow hold ends, or `undefined`.
+- `escrowEnds` — A `Date` when the Steam Guard escrow hold ends, or `undefined`.
+- `settlementDate` — A `Date` when the 2025 trade-protection hold ends and items become final, or `undefined`. Equals the trade's `time_settlement` (~7–8 days after accept); set only once `Accepted`. Separate from `escrowEnds`.
+- `delaySettlement` — `true` when the trade's items are subject to the trade-protection settlement delay.
 - `created` / `updated` / `expires` — `Date`s, or `undefined`.
 - `fromRealTimeTrade` — `true` if this came from a real-time trade session.
 - `glitched` — `true` when the offer is missing item names (descriptions not ready) or has no items. Polling won't advance its cutoff past a glitched offer, so it gets re-polled until complete.
@@ -620,6 +647,14 @@ sessions.
 
 Revokes this refresh token server-side. Afterward the session is dead and any further call throws
 `SteamSessionExpiredError`. Returns `Promise<void>`.
+
+### setRefreshToken(refreshToken)
+
+- `refreshToken` — A fresh MobileApp refresh token for the **same** account.
+
+Swaps in a new refresh token and re-mints in place — the mechanism behind
+[`bot.reauthenticate`](#reauthenticatecredentials). Re-emits [`refreshToken`](#event-refreshtoken).
+Throws if the token is malformed or belongs to a different account. Returns `Promise<void>`.
 
 ### Properties & events
 
@@ -822,13 +857,41 @@ interface PollData {
   sent: Record<string, ETradeOfferState>;       // offer id -> last seen state
   received: Record<string, ETradeOfferState>;
   timestamps: Record<string, number>;
+  lastFullUpdate?: number;                       // ms epoch of the last full sweep; persisted so the cadence survives stateless workers
 }
 ```
 
 ### PollOptions
 
 See [`startPolling`](#startpollingoptions): `pollInterval?` (default 10000 ms), `pollFullUpdateInterval?`
-(default 300000 ms), `pollData?`.
+(default 300000 ms), `pollData?`, `store?` (a [`PollDataStore`](#polldatastore)), `maxAgeMs?` (default
+30d).
+
+### PollDataStore
+
+Pluggable persistence for the poll snapshot — implement it to keep `pollData` in Redis (or anywhere) so
+any worker can resume a bot's poll. You own one-tick-at-a-time mutual exclusion; the library owns the
+diff. Use it with [`startPolling`](#startpollingoptions) (timer) or [`pollOnce`](#pollonceoptions) (cron).
+
+```ts
+interface PollDataStore {
+  load(): Promise<PollData | undefined>;
+  save(pollData: PollData): Promise<void>;
+}
+```
+
+### PollChange
+
+One offer transition returned by [`pollOnce`](#pollonceoptions) (the same set is also emitted as
+[trade events](#trade-events)):
+
+```ts
+type PollChange =
+  | { type: "newOffer"; offer: TradeOffer }
+  | { type: "sentOfferChanged"; offer: TradeOffer; oldState: ETradeOfferState }
+  | { type: "receivedOfferChanged"; offer: TradeOffer; oldState: ETradeOfferState }
+  | { type: "unknownOfferSent"; offer: TradeOffer };
+```
 
 ### Confirmation
 
@@ -894,13 +957,17 @@ logic stays in your code.
 | `SteamError` | `eresult?`, `body?` | Base class for everything. |
 | `HttpStatusError` | `statusCode` | A non-2xx HTTP response. |
 | `SteamSessionExpiredError` | — | The session/token is no longer valid; re-authenticate. |
-| `RateLimitError` | `statusCode?`, `retryAfterMs?`, `unlockAt?` | Rate limited (HTTP 429 or eresult 84). `unlockAt` is a millisecond epoch when you may retry. |
+| `RateLimitError` | `statusCode?`, `retryAfterMs`, `unlockAt` | Rate limited (HTTP 429 or eresult 84). `unlockAt` is a millisecond epoch when you may retry — **always populated** (a conservative default when Steam gives no hint). |
+| `ProxyError` | `cause?` | A request through a configured proxy failed at the transport layer (unreachable / refused / timeout / auth). Only thrown when a `proxy` is set. |
 | `EscrowError` | `escrowDays` | The trade would be (or is) held in escrow. |
 | `TradeBanError` | — | The account is trade-banned. |
 | `OfferLimitError` | `eresult = 25` | Sent too many offers. |
 | `ConfirmationError` | — | A mobile-confirmation step failed. |
 | `FamilyViewError` | — | Family View is restricting the account. |
-| `LoginError` | `extendedErrorMessage?` | Credential-login failure; carries Steam's extended message when present. |
+| `LoginError` | `extendedErrorMessage?`, `isTransient` | Credential-login failure; `isTransient` is `true` for a retryable blip (timeout / service unavailable) rather than bad credentials. |
+
+`unlockAt` / `retryAfterMs` on `RateLimitError` are never `undefined`, so a cooldown is just
+`cooldownUntil = err.unlockAt`:
 
 ```ts
 import { RateLimitError } from "steam-mobile";
@@ -908,7 +975,7 @@ import { RateLimitError } from "steam-mobile";
 try {
   await bot.trade.getTradeOffers();
 } catch (err) {
-  if (err instanceof RateLimitError && err.unlockAt) {
+  if (err instanceof RateLimitError) {
     await sleepUntil(err.unlockAt);
   } else throw err;
 }
@@ -950,8 +1017,8 @@ const bot = new SteamMobile({
 - **Settlement is read-only.** `getTradeStatus` surfaces Steam's `new_assetid`/`new_contextid`;
   reconciling items by inventory diff (the race-prone part) is left to your server, which has the
   concurrency context. `usedInventoryFallback` is therefore always `false`.
-- **No auto-retry.** Rate limits are thrown as `RateLimitError` (the poll loop is the one exception — it
-  backs off and resumes). The caller owns retry policy.
+- **No auto-retry.** Rate limits are thrown as `RateLimitError` — always with a concrete `unlockAt`, so
+  the caller's cooldown needs no guesswork (the poll loop is the one exception: it backs off and resumes).
 
 ---
 

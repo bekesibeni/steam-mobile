@@ -5,8 +5,9 @@ import {
   ACCESS_TOKEN_RENEW_THRESHOLD_SECONDS,
   REFRESH_TOKEN_RENEW_THRESHOLD_SECONDS,
 } from "../core/constants.js";
-import { EAuthTokenRevokeAction, EResult } from "../core/enums.js";
-import { SteamSessionExpiredError } from "../core/errors.js";
+import { EAuthTokenRevokeAction } from "../core/enums.js";
+import { isTerminalAuthEResult } from "../core/eresults.js";
+import { SteamError, SteamSessionExpiredError } from "../core/errors.js";
 import type { HttpClient } from "../http/HttpClient.js";
 import { createProtoPost, type ProtoPost } from "./protoTransport.js";
 import {
@@ -16,15 +17,6 @@ import {
   mintAccessToken,
   secondsUntilExpiry,
 } from "./tokens.js";
-
-// Retryable rejections (not "refresh token is dead").
-const TRANSIENT_ERESULTS = new Set<number>([
-  EResult.ServiceUnavailable,
-  EResult.Busy,
-  EResult.Timeout,
-  EResult.TryAnotherCM,
-  EResult.RemoteCallFailed,
-]);
 
 export interface SessionManagerEvents {
   refreshToken: [token: string];
@@ -84,6 +76,23 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     this.emit("debug", "refresh token revoked (logout)");
   }
 
+  async setRefreshToken(refreshToken: string): Promise<void> {
+    const sub = decodeJwt(refreshToken)?.sub;
+    if (!sub) {
+      throw new SteamSessionExpiredError("invalid refresh token: no steamid (sub) in payload");
+    }
+    if (sub !== this.steamID.getSteamID64()) {
+      throw new SteamError(
+        `refresh token is for a different account (${sub} != ${this.steamID.getSteamID64()})`,
+      );
+    }
+    this.refreshToken = refreshToken;
+    this.revoked = false;
+    this.accessToken = undefined;
+    this.emit("refreshToken", refreshToken);
+    await this.getAccessToken();
+  }
+
   private async mint(): Promise<string> {
     const refreshExpiresIn = secondsUntilExpiry(this.refreshToken);
     if (refreshExpiresIn <= 0) {
@@ -128,8 +137,6 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
   }
 }
 
-// Any Steam-side eresult is terminal unless known-transient; missing eresult (HTTP/transport) is transient.
-// TODO: tighten the terminal set once we've live-observed what a revoked/expired refresh token returns.
 function isTerminalAuthFailure(err: AccessTokenError): boolean {
-  return typeof err.eresult === "number" && !TRANSIENT_ERESULTS.has(err.eresult);
+  return isTerminalAuthEResult(err.eresult);
 }

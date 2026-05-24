@@ -38,6 +38,11 @@ export interface RawCEconTradeOffer {
   from_real_time_trade: boolean;
   escrow_end_date: number;
   confirmation_method: number;
+  eresult?: number;
+  // Trade-protection (2025) hold; settlement_date (== time_settlement) is 0 until Accepted.
+  delay_settlement?: boolean;
+  settlement_date?: number;
+  [key: string]: unknown;
 }
 
 export interface RawGetTradeOffersResponse {
@@ -71,6 +76,7 @@ export interface RawTradeStatus {
   status: number;
   assets_received?: RawExchangeAsset[];
   assets_given?: RawExchangeAsset[];
+  time_mod?: number;
   [key: string]: unknown;
 }
 

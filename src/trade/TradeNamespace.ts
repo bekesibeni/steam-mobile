@@ -28,7 +28,7 @@ import {
   type TradeOffersSummary,
 } from "./exchange.js";
 import { Poller } from "./polling.js";
-import type { PollData, PollOptions, TradeEvents } from "./pollTypes.js";
+import type { PollChange, PollData, PollOptions, TradeEvents } from "./pollTypes.js";
 import { TradeOffer, type TradeOfferDeps } from "./TradeOffer.js";
 
 const FUTURE_CUTOFF_MS = 31_536_000_000; // 1 year ahead = "no historical offers"
@@ -194,6 +194,14 @@ export class TradeNamespace extends EventEmitter<TradeEvents> {
   stopPolling(): void {
     this.poller?.stop();
     this.poller = undefined;
+  }
+
+  async pollOnce(
+    options: PollOptions & { forceFull?: boolean } = {},
+  ): Promise<{ changes: PollChange[]; pollData: PollData }> {
+    const { forceFull, ...pollOptions } = options;
+    if (!this.poller) this.poller = new Poller(this, pollOptions);
+    return this.poller.pollOnce(forceFull ?? false);
   }
 
   get pollData(): PollData | undefined {

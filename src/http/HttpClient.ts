@@ -1,7 +1,8 @@
-import got, { type Got } from "got";
+import got, { type Got, RequestError } from "got";
 import { ProxyAgent } from "proxy-agent";
 import { type Cookie, CookieJar } from "tough-cookie";
 import { URLS } from "../core/constants.js";
+import { ProxyError } from "../core/errors.js";
 import type { MobileProfile } from "../core/mobileProfile.js";
 
 // Hosts that share our session cookies. api is included because the mobile app sends them to the WebAPI host too.
@@ -59,10 +60,12 @@ export class HttpClient {
   readonly jar: CookieJar;
   private readonly client: Got;
   private readonly profile: MobileProfile;
+  private readonly proxy: string | undefined;
 
   constructor(opts: { proxy?: string; profile: MobileProfile }) {
     this.jar = new CookieJar();
     this.profile = opts.profile;
+    this.proxy = opts.proxy;
     const agent = opts.proxy
       ? (() => {
           const proxy = opts.proxy as string;
@@ -140,23 +143,35 @@ export class HttpClient {
     }
     Object.assign(headers, opts.headers); // explicit caller headers win
 
-    const res = await this.client(url, {
-      method,
-      searchParams: clean(opts.searchParams),
-      ...(opts.form ? { form: clean(opts.form) } : {}),
-      ...(body !== undefined ? { body } : {}),
-      ...(opts.json !== undefined ? { json: opts.json } : {}),
-      headers,
-      responseType: (opts.responseType ?? "text") as "text",
-      ...(opts.signal ? { signal: opts.signal } : {}),
-      ...(opts.timeoutMs !== undefined ? { timeout: { request: opts.timeoutMs } } : {}),
-    });
+    try {
+      const res = await this.client(url, {
+        method,
+        searchParams: clean(opts.searchParams),
+        ...(opts.form ? { form: clean(opts.form) } : {}),
+        ...(body !== undefined ? { body } : {}),
+        ...(opts.json !== undefined ? { json: opts.json } : {}),
+        headers,
+        responseType: (opts.responseType ?? "text") as "text",
+        ...(opts.signal ? { signal: opts.signal } : {}),
+        ...(opts.timeoutMs !== undefined ? { timeout: { request: opts.timeoutMs } } : {}),
+      });
 
-    return {
-      statusCode: res.statusCode,
-      headers: res.headers,
-      body: res.body as unknown as T,
-    };
+      return {
+        statusCode: res.statusCode,
+        headers: res.headers,
+        body: res.body as unknown as T,
+      };
+    } catch (err) {
+      throw this.wrapTransportError(err);
+    }
+  }
+
+  // got only throws on transport failures here (HTTP statuses don't); attribute them to the proxy if set.
+  private wrapTransportError(err: unknown): unknown {
+    if (this.proxy && err instanceof RequestError && !isAbortError(err)) {
+      return new ProxyError(`proxy request failed: ${err.code || err.message}`, { cause: err });
+    }
+    return err;
   }
 
   get<T = string>(url: string, opts?: RequestOptions): Promise<HttpResponse<T>> {
@@ -191,4 +206,11 @@ function randomSessionId(): string {
 
 function firstHeader(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    (err.name === "AbortError" || (err as { code?: string }).code === "ERR_ABORTED")
+  );
 }

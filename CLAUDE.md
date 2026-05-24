@@ -36,7 +36,8 @@ The codebase is layered bottom-up; each layer has one job and is independently t
 **Transport (`src/http/`)** — `HttpClient` wraps `got` + `proxy-agent` + `tough-cookie` with
 `throwHttpErrors: false` (callers inspect `statusCode` themselves), adds an `origin=SteamMobile` header
 on non-GET requests, and follows the `/market/eligibilitycheck/` interstitial once-and-retries (it is a
-server-side priming redirect, NOT a "limited account" signal). `webApi.ts` (`WebApiClient`) is the JSON
+server-side priming redirect, NOT a "limited account" signal). When a `proxy` is configured, `got`
+transport failures are wrapped as `ProxyError`. `webApi.ts` (`WebApiClient`) is the JSON
 Web-API caller (`access_token` in query, `x-eresult` parsing, the fake-`Fail(2)`-with-body tolerance).
 `checkers.ts` maps HTTP/eresult conditions to the typed error hierarchy.
 
@@ -49,19 +50,26 @@ be present even when empty (else Steam returns JSON). `AuthClient` is the typed 
 
 **Session / auth (`src/session/`, `src/auth/`)** — `SessionManager` (= `bot.session`) owns the token
 lifecycle: lazy access-token mint/renew, refresh-token rotation (emits `refreshToken`), the
-`steamLoginSecure` cookie, `listSessions()`, `logout()`. Pre-auth credential login lives in `src/auth/`
-(`loginWithCredentials` → `CredentialSession` state machine → `AuthClient`), and is standalone (not on
-`SteamMobile`) so it can produce a refresh token before a client exists.
+`steamLoginSecure` cookie, `listSessions()`, `logout()`, `setRefreshToken()` (account-guarded in-place
+swap). `sessionExpired` fires only on a confirmed-terminal eresult (allowlist in `core/eresults.ts`),
+never a transient blip. Pre-auth credential login lives in `src/auth/` (`loginWithCredentials` →
+`CredentialSession` state machine → `AuthClient`), and is standalone (not on `SteamMobile`) so it can
+produce a refresh token before a client exists.
 
 **Root + namespaces** — `SteamMobile` (`src/SteamMobile.ts`) constructs everything and re-emits all
 trade events on the root. **Construction is synchronous** (no network; `steamID` comes from the
 refresh-token JWT); `await bot.login()` is the only network step (mints the token, applies the cookie,
-auto-starts polling if configured). The two namespaces:
+auto-starts polling if configured). `bot.reauthenticate(credentials)` recovers a dead/revoked refresh
+token (credential login reusing the instance's proxy/profile → `session.setRefreshToken`). The two
+namespaces:
 
 - `bot.trade` (`src/trade/`) — `TradeNamespace` (an EventEmitter) + `TradeOffer` (fluent
   give/receive/send/accept/cancel/confirm/counter). `polling.ts` is the faithful McKay poll loop
-  (active poll + periodic full sweep, glitched-offer cutoff blocking, diff vs persisted `pollData`).
-  `exchange.ts` is settlement reads (`getTradeStatus`/`getTradeHistory`/`getTradeOffersSummary`).
+  (active poll + periodic full sweep bounded to `maxAgeMs`, glitched-offer cutoff blocking, diff vs
+  `pollData`, terminal-offer pruning); `pollOnce()` is the timer-less single cycle for an external
+  scheduler, and an optional `PollDataStore` persists `pollData` (incl. `lastFullUpdate`) so stateless
+  workers stay consistent. `exchange.ts` is settlement reads
+  (`getTradeStatus`/`getTradeHistory`/`getTradeOffersSummary`).
 - `bot.community` (`src/community/`) — `CommunityNamespace` (inventory, profile, trade URLs, escrow
   scrape, API key) + `confirmations.ts` (`ConfirmationManager`: mobileconf engine, `m=react`, time
   offset, per-request HMAC timestamp dedup).
@@ -89,8 +97,9 @@ Steam JSON shapes), `constants.ts` (endpoints, renewal thresholds), `rateLimits.
 - **`cancel`/`decline` are community POSTs**, not Web API calls (the WebAPI rejects the mobile token);
   escrow/probation comes from a trade-page scrape (`GetTradeHoldDurations` returns AccessDenied).
 - **Rate limits are classified, not retried.** Community = HTTP 429, WebAPI = eresult 84;
-  `RateLimitError` carries `unlockAt`/`retryAfterMs`. The poll loop's adaptive backoff is the one
-  exception. Cooldown policy stays in the consumer.
+  `RateLimitError` always carries a concrete `unlockAt`/`retryAfterMs` (conservative default when the
+  endpoint's window is unknown). The poll loop's adaptive backoff is the one exception. Cooldown policy
+  stays in the consumer.
 - **TS strictness:** `strict` + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes` +
   `verbatimModuleSyntax`. Use `import type` for type-only imports, `.js` extensions on all relative
   imports (NodeNext), and conditional spreads (`...(x ? { x } : {})`) instead of assigning `undefined`

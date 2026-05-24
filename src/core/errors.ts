@@ -1,12 +1,24 @@
+import { isTransientEResult } from "./eresults.js";
+
+// Fallback so every RateLimitError has a concrete unlockAt (Steam never sends Retry-After).
+export const DEFAULT_RATE_LIMIT_RETRY_MS = 60_000;
+
 export class SteamError extends Error {
   readonly eresult?: number;
   readonly body?: unknown;
 
-  constructor(message: string, options?: { eresult?: number; body?: unknown }) {
-    super(message);
+  constructor(message: string, options?: { eresult?: number; body?: unknown; cause?: unknown }) {
+    super(message, options?.cause !== undefined ? { cause: options.cause } : undefined);
     this.name = "SteamError";
     if (options?.eresult !== undefined) this.eresult = options.eresult;
     if (options?.body !== undefined) this.body = options.body;
+  }
+}
+
+export class ProxyError extends SteamError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "ProxyError";
   }
 }
 
@@ -29,8 +41,8 @@ export class SteamSessionExpiredError extends SteamError {
 
 export class RateLimitError extends SteamError {
   readonly statusCode: number | undefined;
-  readonly retryAfterMs: number | undefined;
-  readonly unlockAt: number | undefined;
+  readonly retryAfterMs: number;
+  readonly unlockAt: number;
 
   constructor(
     options: {
@@ -47,9 +59,8 @@ export class RateLimitError extends SteamError {
     });
     this.name = "RateLimitError";
     this.statusCode = options.statusCode;
-    this.retryAfterMs = options.retryAfterMs;
-    this.unlockAt =
-      options.retryAfterMs !== undefined ? Date.now() + options.retryAfterMs : undefined;
+    this.retryAfterMs = options.retryAfterMs ?? DEFAULT_RATE_LIMIT_RETRY_MS;
+    this.unlockAt = Date.now() + this.retryAfterMs;
   }
 }
 
@@ -94,6 +105,7 @@ export class FamilyViewError extends SteamError {
 // Credential-login failures; carries Steam's extended_error_message when present.
 export class LoginError extends SteamError {
   readonly extendedErrorMessage: string | undefined;
+  readonly isTransient: boolean;
 
   constructor(
     message: string,
@@ -102,5 +114,6 @@ export class LoginError extends SteamError {
     super(message, options);
     this.name = "LoginError";
     this.extendedErrorMessage = options?.extendedErrorMessage;
+    this.isTransient = isTransientEResult(options?.eresult);
   }
 }

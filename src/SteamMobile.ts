@@ -1,5 +1,9 @@
 import { EventEmitter } from "node:events";
 import type SteamID from "steamid";
+import {
+  type LoginWithCredentialsOptions,
+  loginWithCredentials,
+} from "./auth/loginWithCredentials.js";
 import { CommunityNamespace } from "./community/CommunityNamespace.js";
 import { ConfirmationManager } from "./community/confirmations.js";
 import {
@@ -30,6 +34,8 @@ export interface SteamMobileOptions {
   polling?: boolean | PollOptions;
 }
 
+export type ReauthenticateOptions = Omit<LoginWithCredentialsOptions, "proxy" | "mobileProfile">;
+
 export class SteamMobile extends EventEmitter<SteamMobileEvents> {
   readonly http: HttpClient;
   readonly session: SessionManager;
@@ -39,10 +45,14 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
   readonly community: CommunityNamespace;
   readonly identitySecret: string | undefined;
   private readonly polling: boolean | PollOptions | undefined;
+  private readonly proxy: string | undefined;
+  private readonly profile: MobileProfile;
 
   constructor(options: SteamMobileOptions) {
     super();
     const profile = resolveMobileProfile(options.mobileProfile);
+    this.profile = profile;
+    this.proxy = options.proxy;
     this.http = new HttpClient({
       ...(options.proxy ? { proxy: options.proxy } : {}),
       profile,
@@ -79,6 +89,15 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
       this.trade.startPolling(this.polling === true ? {} : this.polling);
     }
     return this;
+  }
+
+  async reauthenticate(credentials: ReauthenticateOptions): Promise<void> {
+    const result = await loginWithCredentials({
+      ...credentials,
+      ...(this.proxy ? { proxy: this.proxy } : {}),
+      mobileProfile: this.profile,
+    });
+    await this.session.setRefreshToken(result.refreshToken);
   }
 
   // Existing Web API key, or register one; null if the account is ineligible.

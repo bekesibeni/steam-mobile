@@ -8,7 +8,19 @@ export interface PollData {
   sent: Record<string, ETradeOfferState>;
   received: Record<string, ETradeOfferState>;
   timestamps: Record<string, number>;
+  lastFullUpdate?: number;
 }
+
+export interface PollDataStore {
+  load(): Promise<PollData | undefined>;
+  save(pollData: PollData): Promise<void>;
+}
+
+export type PollChange =
+  | { type: "newOffer"; offer: TradeOffer }
+  | { type: "sentOfferChanged"; offer: TradeOffer; oldState: ETradeOfferState }
+  | { type: "receivedOfferChanged"; offer: TradeOffer; oldState: ETradeOfferState }
+  | { type: "unknownOfferSent"; offer: TradeOffer };
 
 export interface PollOptions {
   // Active-only poll cadence (ms). GetTradeOffers is a token bucket (~85 burst, ~8/s), so aggressive intervals stay in budget.
@@ -16,6 +28,8 @@ export interface PollOptions {
   // Full-sweep cadence (ms): re-reads all offers to catch backdated state changes.
   pollFullUpdateInterval?: number;
   pollData?: PollData;
+  store?: PollDataStore;
+  maxAgeMs?: number;
 }
 
 export interface TradeEvents {

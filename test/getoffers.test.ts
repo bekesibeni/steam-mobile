@@ -123,6 +123,46 @@ describe("TradeNamespace.getOffers", () => {
   });
 });
 
+describe("TradeNamespace.getOffers settlement fields", () => {
+  it("maps settlement_date/delay_settlement onto an accepted trade-protected offer", async () => {
+    const api = new FakeApi();
+    const accepted = {
+      ...rawOffer("30"),
+      trade_offer_state: ETradeOfferState.Accepted,
+      tradeid: "732542373858598729",
+      delay_settlement: true,
+      settlement_date: 1_780_210_800,
+    } as unknown as RawCEconTradeOffer;
+    api.queueResponse({
+      response: {
+        trade_offers_received: [accepted],
+        descriptions: [desc("AK-47")],
+        next_cursor: 0,
+      },
+    });
+
+    const { received } = await makeTrade(api).getOffers();
+    expect(received[0]!.delaySettlement).toBe(true);
+    expect(received[0]!.settlementDate).toEqual(new Date(1_780_210_800 * 1000));
+  });
+
+  it("leaves settlementDate undefined when settlement_date is 0 (not yet settled / no protection)", async () => {
+    const api = new FakeApi();
+    const unsettled = {
+      ...rawOffer("31"),
+      delay_settlement: false,
+      settlement_date: 0,
+    } as unknown as RawCEconTradeOffer;
+    api.queueResponse({
+      response: { trade_offers_sent: [unsettled], descriptions: [desc("AK-47")], next_cursor: 0 },
+    });
+
+    const { sent } = await makeTrade(api).getOffers();
+    expect(sent[0]!.delaySettlement).toBe(false);
+    expect(sent[0]!.settlementDate).toBeUndefined();
+  });
+});
+
 describe("TradeNamespace.reconcile", () => {
   it("returns found offers and skips missing ones", async () => {
     const api = new FakeApi();

@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { HttpStatusError, RateLimitError, SteamSessionExpiredError } from "../src/core/errors.js";
+import {
+  DEFAULT_RATE_LIMIT_RETRY_MS,
+  HttpStatusError,
+  RateLimitError,
+  SteamSessionExpiredError,
+} from "../src/core/errors.js";
 import { httpError } from "../src/http/checkers.js";
 
 describe("httpError", () => {
-  it("maps 429 to a RateLimitError carrying statusCode (not eresult)", () => {
+  it("maps 429 to a RateLimitError carrying statusCode (not eresult), with a default unlockAt", () => {
     const err = httpError({ statusCode: 429, headers: {}, body: "x" });
     expect(err).toBeInstanceOf(RateLimitError);
     const rl = err as RateLimitError;
     expect(rl.statusCode).toBe(429);
     expect(rl.eresult).toBeUndefined();
-    expect(rl.retryAfterMs).toBeUndefined();
-    expect(rl.unlockAt).toBeUndefined();
+    // No tested window for this endpoint → conservative fallback, never undefined.
+    expect(rl.retryAfterMs).toBe(DEFAULT_RATE_LIMIT_RETRY_MS);
+    expect(rl.unlockAt).toBeGreaterThan(Date.now());
   });
 
   it("seeds our tested window into retryAfterMs + unlockAt", () => {

@@ -30,6 +30,12 @@ export {
   ETradeOfferState,
   ETradeStatus,
 } from "./core/enums.js";
+export {
+  isTerminalAuthEResult,
+  isTransientEResult,
+  TERMINAL_AUTH_ERESULTS,
+  TRANSIENT_ERESULTS,
+} from "./core/eresults.js";
 export * from "./core/errors.js";
 export {
   ANDROID_PROFILE,
@@ -38,6 +44,7 @@ export {
   type MobileProfile,
   resolveMobileProfile,
 } from "./core/mobileProfile.js";
+export { isTerminalState } from "./core/offerState.js";
 export {
   RATE_LIMITS,
   type RateLimit,
@@ -64,7 +71,11 @@ export {
   type SteamDescriptionLine,
   type SteamTag,
 } from "./models/EconItem.js";
-export type { SteamMobileEvents, SteamMobileOptions } from "./SteamMobile.js";
+export type {
+  ReauthenticateOptions,
+  SteamMobileEvents,
+  SteamMobileOptions,
+} from "./SteamMobile.js";
 export { SteamMobile } from "./SteamMobile.js";
 export type { SessionManagerEvents } from "./session/SessionManager.js";
 export { SessionManager } from "./session/SessionManager.js";
@@ -88,10 +99,17 @@ export {
 export {
   DEFAULT_POLL_FULL_UPDATE_INTERVAL,
   DEFAULT_POLL_INTERVAL,
+  DEFAULT_POLL_MAX_AGE_MS,
   Poller,
   type PollSource,
 } from "./trade/polling.js";
-export type { PollData, PollOptions, TradeEvents } from "./trade/pollTypes.js";
+export type {
+  PollChange,
+  PollData,
+  PollDataStore,
+  PollOptions,
+  TradeEvents,
+} from "./trade/pollTypes.js";
 export { TradeNamespace } from "./trade/TradeNamespace.js";
 export {
   type AcceptResult,
