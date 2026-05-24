@@ -8,7 +8,13 @@ import type { OfferTarget } from "../core/types.js";
 import { checkCommunityError, httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
 import type { WebApiClient } from "../http/webApi.js";
-import { type EconItem, parseInventory, type RawInventoryResponse } from "../models/EconItem.js";
+import {
+  type EconItem,
+  parseInventory,
+  parsePartnerInventory,
+  type RawInventoryResponse,
+  type RawPartnerInventoryResponse,
+} from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
 import type { ConfirmationManager } from "./confirmations.js";
 
@@ -209,10 +215,55 @@ export class CommunityNamespace {
     options: GetInventoryOptions = {},
   ): Promise<EconItem[]> {
     await this.session.getAccessToken();
-    const steamId = options.steamId ?? this.session.steamID.getSteamID64();
-    const url = `${URLS.community}/inventory/${steamId}/${appid}/${contextid}`;
+    const ownId = this.session.steamID.getSteamID64();
+    const steamId = options.steamId ?? ownId;
     const tradableOnly = options.tradableOnly ?? false;
+    return steamId === ownId
+      ? this.getOwnInventory(steamId, appid, contextid, tradableOnly)
+      : this.getOtherInventory(steamId, appid, contextid, tradableOnly);
+  }
 
+  // Own inventory uses the legacy /inventory/json/ endpoint: near-nonexistent rate limits, a server-side
+  // `trading` filter, and it surfaces trade-protected items. Same rg* shape as /partnerinventory/.
+  private getOwnInventory(
+    steamId: string,
+    appid: number,
+    contextid: string,
+    tradableOnly: boolean,
+  ): Promise<EconItem[]> {
+    const url = `${URLS.community}/profiles/${steamId}/inventory/json/${appid}/${contextid}`;
+    return paginate<EconItem, number>(async (start): Promise<Page<EconItem, number>> => {
+      const res = await this.http.get<RawPartnerInventoryResponse>(url, {
+        responseType: "json",
+        searchParams: {
+          trading: tradableOnly ? 1 : 0,
+          preserve_bbcode: 1,
+          l: LANG.l,
+          ...(start !== undefined ? { start } : {}),
+        },
+        headers: { Referer: `${URLS.community}/profiles/${steamId}/inventory` },
+      });
+      if (res.statusCode !== 200) throw httpError(res, RETRY_AFTER.inventory);
+      const body = res.body;
+      if (!body?.success) throw new SteamError(body?.error ?? "Malformed inventory response");
+
+      // Continue only when more_start actually advances, else a stuck cursor loops forever.
+      const next =
+        body.more && typeof body.more_start === "number" && body.more_start > (start ?? 0)
+          ? body.more_start
+          : undefined;
+      return { items: parsePartnerInventory(body, contextid, tradableOnly), next };
+    });
+  }
+
+  // Others' inventory uses the new /inventory/ endpoint (the legacy one only serves the logged-in user).
+  private getOtherInventory(
+    steamId: string,
+    appid: number,
+    contextid: string,
+    tradableOnly: boolean,
+  ): Promise<EconItem[]> {
+    const url = `${URLS.community}/inventory/${steamId}/${appid}/${contextid}`;
     return paginate<EconItem, string>(async (startAssetId): Promise<Page<EconItem, string>> => {
       const res = await this.http.get<RawInventoryResponse>(url, {
         responseType: "json",
