@@ -27,6 +27,7 @@ persistent CM connection.
 - [bot.community](#botcommunity) — inventories, profiles, trade URLs, API keys
 - [bot.session](#botsession) — token lifecycle and sessions
 - [bot.confirmations](#botconfirmations) — low-level mobile confirmations
+- [decodePreviewToken](#decodepreviewtoken) — decode CS2 item inspect/certificate data
 - [Data types](#data-types)
 - [Enums](#enums)
 - [Errors](#errors)
@@ -719,6 +720,41 @@ exists.
 
 ---
 
+## decodePreviewToken
+
+A standalone helper (not on the bot) that decodes a **CS2 masked preview token** — the inspect-data
+blob Steam ships in an item's `asset_properties` under `propertyid: 6` (the "certificate") — into a
+plain JSON object. The same masked format is used by `csgo_econ_action_preview` market inspect tokens.
+Decoding is fully offline (XOR-unmask → protobuf), so no game-coordinator call is needed.
+
+```ts
+import { decodePreviewToken } from "steam-mobile";
+
+const cert = item.asset_properties.find((p) => p.propertyid === 6)?.string_value;
+const data = decodePreviewToken(cert);
+// {
+//   itemid: "51663785755", defindex: 4, paintindex: 230, rarity: 4, quality: 9,
+//   paintwear: 0.18685653805732727, paintseed: 34,
+//   stickers: [{ slot: 2, stickerId: 6618 }, …],
+//   inventory: 3221225475, origin: 8,
+//   keychains: [{ slot: 0, stickerId: 54, offsetX: -1.55…, pattern: 34792 }],
+// }
+```
+
+- `hex` — The raw certificate hex (or any `[xorKey][protobuf][crc32]` masked blob). Pass it as-is; no
+  trimming or tag-stripping needed.
+- Returns the decoded [`CEconItemPreviewDataBlock`](https://github.com/SteamDatabase/Protobufs/blob/master/csgo/cstrike15_gcmessages.proto#L917)
+  as a plain object (`Record<string, unknown>`), or `null` for non-hex / undecodable input.
+
+Output notes: `itemid` (uint64) is a **string**, fields are **camelCase** (`sticker_id` → `stickerId`,
+`offset_x` → `offsetX`), only fields actually present on the wire are included, and `paintwear` is
+returned as the **float wear** (`0..1`) rather than its raw uint32 bits.
+
+> S/A/D inspect links (the ones with a `D…` parameter) are **not** decodable this way — those carry no
+> embedded data and require a live game-coordinator lookup.
+
+---
+
 ## Data types
 
 ### OfferTarget
@@ -754,7 +790,7 @@ inventory and offer read. Key fields:
 - `icon_url`, `icon_url_large?`
 - `tradable`, `marketable`, `commodity` (booleans), `market_tradable_restriction`, `market_marketable_restriction` (numbers)
 - `descriptions`, `owner_descriptions` ([`SteamDescriptionLine`](#data-types)[]), `actions`, `market_actions` (`SteamAction[]`), `fraudwarnings` (string[]), `tags` (`SteamTag[]`)
-- `asset_properties` ([`AssetProperty`](#data-types)[]) — CS2 float/seed/sticker data when present
+- `asset_properties` ([`AssetProperty`](#data-types)[]) — CS2 float/seed/sticker data when present; decode the `propertyid: 6` certificate with [`decodePreviewToken`](#decodepreviewtoken)
 - Any other field Steam returns is preserved (`[key: string]: unknown`).
 
 ### ExchangeItem

@@ -71,6 +71,7 @@ export {
   type SteamDescriptionLine,
   type SteamTag,
 } from "./models/EconItem.js";
+export { decodePreviewToken } from "./models/inspect.js";
 export type {
   ReauthenticateOptions,
   SteamMobileEvents,
