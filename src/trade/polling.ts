@@ -30,6 +30,7 @@ export class Poller {
   private readonly pollInterval: number;
   private readonly fullInterval: number;
   private readonly maxAgeMs: number;
+  private readonly cancelTime: number | undefined;
   private readonly store: PollDataStore | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private running = false;
@@ -46,6 +47,7 @@ export class Poller {
     );
     this.fullInterval = options.pollFullUpdateInterval ?? DEFAULT_POLL_FULL_UPDATE_INTERVAL;
     this.maxAgeMs = options.maxAgeMs ?? DEFAULT_POLL_MAX_AGE_MS;
+    this.cancelTime = options.cancelTime;
     this.store = options.store;
     this.pollData = options.pollData ?? emptyPollData();
   }
@@ -147,7 +149,8 @@ export class Poller {
       fullUpdate ? EOfferFilter.All : EOfferFilter.ActiveOnly,
       new Date(cutoff * 1000),
     );
-    const changes = this.process(result.sent, result.received);
+    const changes = this.process(result.sent, result.received, fullUpdate);
+    if (this.cancelTime !== undefined) this.autoCancel(result.sent, this.cancelTime);
     this.prune(seenIds(result.sent, result.received));
     const changed = JSON.stringify(this.pollData) !== before;
 
@@ -156,29 +159,49 @@ export class Poller {
     return { changes, changed };
   }
 
+  // Auto-cancel sent offers still Active past cancelTime since their last update (McKay's cancelTime).
+  // Fire-and-forget like the upstream; the resulting state change surfaces on a later poll.
+  private autoCancel(sentList: TradeOffer[], cancelTime: number): void {
+    const now = Date.now();
+    for (const offer of sentList) {
+      if (offer.state !== ETradeOfferState.Active || !offer.updated) continue;
+      if (now - offer.updated.getTime() < cancelTime) continue;
+      void offer.cancel().then(
+        () => this.source.emit("sentOfferCanceled", offer, "cancelTime"),
+        (err: Error) =>
+          this.source.emit("debug", `Can't auto-cancel offer #${offer.id}: ${err.message}`),
+      );
+    }
+  }
+
   // Bound the full sweep to the retention window so it stays cheap and can't return already-pruned offers.
   private sweepCutoffSeconds(): number {
     return Math.max(1, Math.floor((Date.now() - this.maxAgeMs) / 1000));
   }
 
-  private process(sentList: TradeOffer[], receivedList: TradeOffer[]): PollChange[] {
+  private process(
+    sentList: TradeOffer[],
+    receivedList: TradeOffer[],
+    fullUpdate: boolean,
+  ): PollChange[] {
     const changes: PollChange[] = [];
     const { sent, received, timestamps } = this.pollData;
     let hasGlitched = false;
 
     for (const offer of sentList) {
       if (!offer.id) continue;
-      if (offer.glitched) {
-        hasGlitched = true;
-        continue;
-      }
       const known = sent[offer.id];
       if (known === undefined) {
-        this.source.emit("unknownOfferSent", offer);
-        changes.push({ type: "unknownOfferSent", offer });
+        // Unknown sent offer: record + announce regardless of glitch (matches steam-tradeoffer-manager).
+        // Skipping these strands the cutoff at 0 and re-announces them on every poll.
+        this.record(changes, { type: "unknownOfferSent", offer });
       } else if (offer.state !== known) {
-        this.source.emit("sentOfferChanged", offer, known);
-        changes.push({ type: "sentOfferChanged", offer, oldState: known });
+        if (offer.glitched) {
+          // Defer a glitched state change so it's re-polled with full item data; blocks cutoff advance.
+          hasGlitched = true;
+          continue;
+        }
+        this.record(changes, { type: "sentOfferChanged", offer, oldState: known });
       }
       sent[offer.id] = offer.state;
       this.stamp(timestamps, offer);
@@ -192,11 +215,9 @@ export class Poller {
       }
       const known = received[offer.id];
       if (known === undefined && offer.state === ETradeOfferState.Active) {
-        this.source.emit("newOffer", offer);
-        changes.push({ type: "newOffer", offer });
+        this.record(changes, { type: "newOffer", offer });
       } else if (known !== undefined && offer.state !== known) {
-        this.source.emit("receivedOfferChanged", offer, known);
-        changes.push({ type: "receivedOfferChanged", offer, oldState: known });
+        this.record(changes, { type: "receivedOfferChanged", offer, oldState: known });
       }
       received[offer.id] = offer.state;
       this.stamp(timestamps, offer);
@@ -209,9 +230,38 @@ export class Poller {
         const updated = offer.updated ? Math.floor(offer.updated.getTime() / 1000) : 0;
         if (updated > latest) latest = updated;
       }
+      // A full sweep observes all state up to now, so floor offersSince to now even when no offers
+      // come back. Otherwise it stays 0 and active polls send time_historical_cutoff=0, which Steam
+      // answers erratically (misses declines, resurfaces old offers as "new"). Our sweep is bounded
+      // to maxAgeMs, so unlike McKay's epoch sweep it can legitimately return nothing.
+      if (fullUpdate) latest = Math.max(latest, Math.floor(Date.now() / 1000));
       this.pollData.offersSince = latest;
     }
     return changes;
+  }
+
+  // Record a change and emit it as both its specific named event and the unified offerUpdate event.
+  private record(changes: PollChange[], change: PollChange): void {
+    changes.push(change);
+    switch (change.type) {
+      case "newOffer":
+        this.source.emit("newOffer", change.offer);
+        break;
+      case "unknownOfferSent":
+        this.source.emit("unknownOfferSent", change.offer);
+        break;
+      case "sentOfferChanged":
+        this.source.emit("sentOfferChanged", change.offer, change.oldState);
+        break;
+      case "receivedOfferChanged":
+        this.source.emit("receivedOfferChanged", change.offer, change.oldState);
+        break;
+    }
+    const previousState = "oldState" in change ? change.oldState : undefined;
+    this.source.emit("offerUpdate", {
+      offer: change.offer,
+      ...(previousState !== undefined ? { previousState } : {}),
+    });
   }
 
   // Drop terminal offers older than the retention window; never prune one seen this cycle.

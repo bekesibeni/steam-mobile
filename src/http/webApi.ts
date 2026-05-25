@@ -29,12 +29,18 @@ export class WebApiClient {
     const url = `${URLS.api}/${iface}/${method}/v${version}/`;
     const payload = { ...input, access_token: accessToken };
 
-    // The mobile app tacks origin=SteamMobile onto WebAPI GETs.
+    if (process.env.DEBUG_HTTP === "1") {
+      const qs = new URLSearchParams(
+        Object.entries(payload)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]): [string, string] => [k, String(v)]),
+      );
+      console.log(`[http] ${httpMethod} ${url}?${qs.toString()}`);
+    }
+
     const res = await this.http.request<ApiBody>(httpMethod, url, {
       responseType: "json",
-      ...(httpMethod === "GET"
-        ? { searchParams: { ...payload, origin: "SteamMobile" } }
-        : { form: payload }),
+      ...(httpMethod === "GET" ? { searchParams: payload } : { form: payload }),
     });
 
     if (res.statusCode !== 200) {

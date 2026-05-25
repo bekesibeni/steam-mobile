@@ -22,6 +22,11 @@ export type PollChange =
   | { type: "receivedOfferChanged"; offer: TradeOffer; oldState: ETradeOfferState }
   | { type: "unknownOfferSent"; offer: TradeOffer };
 
+export interface TradeOfferUpdate {
+  offer: TradeOffer;
+  previousState?: ETradeOfferState;
+}
+
 export interface PollOptions {
   // Active-only poll cadence (ms). GetTradeOffers is a token bucket (~85 burst, ~8/s), so aggressive intervals stay in budget.
   pollInterval?: number;
@@ -30,6 +35,8 @@ export interface PollOptions {
   pollData?: PollData;
   store?: PollDataStore;
   maxAgeMs?: number;
+  // Auto-cancel a sent offer still Active this many ms after its last update (McKay's cancelTime).
+  cancelTime?: number;
 }
 
 export interface TradeEvents {
@@ -39,6 +46,10 @@ export interface TradeEvents {
   receivedOfferChanged: [offer: TradeOffer, oldState: ETradeOfferState];
   // A sent offer we hadn't recorded (sent out-of-band, or the first cold poll).
   unknownOfferSent: [offer: TradeOffer];
+  // The poller auto-canceled a sent offer; reason is currently always "cancelTime".
+  sentOfferCanceled: [offer: TradeOffer, reason: string];
+  // Fires once for every offer change, in addition to the specific event above.
+  offerUpdate: [update: TradeOfferUpdate];
   // The pollData snapshot changed — persist it.
   pollData: [data: PollData];
   pollSuccess: [];

@@ -92,6 +92,20 @@ describe("TradeNamespace.getOffers", () => {
     expect(sent[0]!.glitched).toBe(true);
   });
 
+  it("does not flag a terminal offer as glitched when its item description is missing", async () => {
+    const api = new FakeApi();
+    const declined = {
+      ...rawOffer("7"),
+      trade_offer_state: ETradeOfferState.Declined,
+    } as unknown as RawCEconTradeOffer;
+    api.queueResponse({ response: { trade_offers_sent: [declined], next_cursor: 0 } });
+    const trade = makeTrade(api);
+
+    const { sent } = await trade.getOffers();
+    // Steam omits descriptions for dead offers; deferring would strand the Active->Declined change.
+    expect(sent[0]!.glitched).toBe(false);
+  });
+
   it("throws on a wholly-malformed response (data temporarily unavailable)", async () => {
     const api = new FakeApi();
     const broken = { ...rawOffer("4"), accountid_other: 0 } as unknown as RawCEconTradeOffer;

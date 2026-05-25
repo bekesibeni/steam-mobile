@@ -78,6 +78,8 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
     this.trade.on("sentOfferChanged", (o, s) => this.emit("sentOfferChanged", o, s));
     this.trade.on("receivedOfferChanged", (o, s) => this.emit("receivedOfferChanged", o, s));
     this.trade.on("unknownOfferSent", (o) => this.emit("unknownOfferSent", o));
+    this.trade.on("sentOfferCanceled", (o, r) => this.emit("sentOfferCanceled", o, r));
+    this.trade.on("offerUpdate", (u) => this.emit("offerUpdate", u));
     this.trade.on("pollData", (d) => this.emit("pollData", d));
     this.trade.on("pollSuccess", () => this.emit("pollSuccess"));
     this.trade.on("pollFailure", (e) => this.emit("pollFailure", e));

@@ -1,5 +1,5 @@
 import SteamID from "steamid";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EOfferFilter, ETradeOfferState } from "../src/core/enums.js";
 import { RateLimitError } from "../src/core/errors.js";
 import type { PollData, PollDataStore, PollSource, TradeEvents } from "../src/index.js";
@@ -94,6 +94,50 @@ describe("Poller", () => {
     expect(src.emitted("pollData")).toHaveLength(1);
   });
 
+  it("emits a unified offerUpdate alongside each named event", async () => {
+    const poller = new Poller(src);
+    src.queueResult({
+      sent: [makeOffer({ id: "200", state: ETradeOfferState.Active, isOurOffer: true })],
+      received: [makeOffer({ id: "100", state: ETradeOfferState.Active })],
+    });
+    await poller.poll();
+
+    // First observation: one update per offer, both with previousState undefined.
+    const first = src.emitted("offerUpdate");
+    expect(first).toHaveLength(2);
+    for (const e of first)
+      expect((e.args[0] as { previousState?: number }).previousState).toBeUndefined();
+    src.reset();
+
+    src.queueResult({
+      sent: [
+        makeOffer({
+          id: "200",
+          state: ETradeOfferState.Accepted,
+          isOurOffer: true,
+          updated: new Date(1_700_000_500_000),
+        }),
+      ],
+    });
+    await poller.poll();
+
+    const updates = src.emitted("offerUpdate");
+    expect(updates).toHaveLength(1);
+    expect(src.emitted("sentOfferChanged")).toHaveLength(1);
+    const update = updates[0]!.args[0] as { previousState?: number };
+    expect(update.previousState).toBe(ETradeOfferState.Active);
+  });
+
+  it("floors offersSince to now after a full sweep that returns nothing (never cutoff=0)", async () => {
+    const poller = new Poller(src);
+    src.queueResult({}); // first poll is a full sweep; our bounded sweep can legitimately return none
+
+    await poller.poll();
+
+    // Without flooring, offersSince stays 0 and the next active poll sends time_historical_cutoff=0.
+    expect(poller.pollData.offersSince).toBeGreaterThanOrEqual(Math.floor(Date.now() / 1000) - 5);
+  });
+
   it("does not re-emit when a second poll sees no change", async () => {
     const offers = {
       sent: [makeOffer({ id: "200", state: ETradeOfferState.Active, isOurOffer: true })],
@@ -136,6 +180,29 @@ describe("Poller", () => {
     expect(changed).toHaveLength(1);
     expect(changed[0]!.args[1]).toBe(ETradeOfferState.Active);
     expect(poller.pollData.sent["200"]).toBe(ETradeOfferState.Accepted);
+  });
+
+  it("records and announces an unknown glitched sent offer instead of stranding the cutoff", async () => {
+    const poller = new Poller(src);
+    // A terminal 0-item offer reads as glitched; McKay still records/announces unknown sent offers.
+    src.queueResult({
+      sent: [
+        makeOffer({
+          id: "200",
+          state: ETradeOfferState.Declined,
+          isOurOffer: true,
+          glitched: true,
+          updated: new Date(1_700_000_000_000),
+        }),
+      ],
+    });
+
+    await poller.poll();
+
+    expect(src.emitted("unknownOfferSent")).toHaveLength(1);
+    expect(poller.pollData.sent["200"]).toBe(ETradeOfferState.Declined);
+    // Cutoff must advance off 0, else the next active poll sends time_historical_cutoff=0.
+    expect(poller.pollData.offersSince).toBeGreaterThan(0);
   });
 
   it("a glitched offer blocks cutoff advancement and suppresses the change event", async () => {
@@ -183,6 +250,42 @@ describe("Poller", () => {
     expect(src.emitted("newOffer")).toHaveLength(0);
     expect(src.emitted("unknownOfferSent")).toHaveLength(0);
     expect(src.emitted("receivedOfferChanged")).toHaveLength(0);
+  });
+
+  it("auto-cancels a sent offer left Active past cancelTime and emits sentOfferCanceled", async () => {
+    const poller = new Poller(src, { cancelTime: 60_000 });
+    const stale = makeOffer({
+      id: "200",
+      state: ETradeOfferState.Active,
+      isOurOffer: true,
+      updated: new Date(Date.now() - 120_000), // 2 min old, past the 60s cancelTime
+    });
+    const cancelSpy = vi.fn(async () => {});
+    stale.cancel = cancelSpy;
+    src.queueResult({ sent: [stale] });
+
+    await poller.poll();
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(src.emitted("sentOfferCanceled")).toHaveLength(1));
+    expect(src.emitted("sentOfferCanceled")[0]!.args[1]).toBe("cancelTime");
+  });
+
+  it("does not auto-cancel a sent offer younger than cancelTime", async () => {
+    const poller = new Poller(src, { cancelTime: 60_000 });
+    const fresh = makeOffer({
+      id: "201",
+      state: ETradeOfferState.Active,
+      isOurOffer: true,
+      updated: new Date(Date.now() - 5_000),
+    });
+    const cancelSpy = vi.fn(async () => {});
+    fresh.cancel = cancelSpy;
+    src.queueResult({ sent: [fresh] });
+
+    await poller.poll();
+
+    expect(cancelSpy).not.toHaveBeenCalled();
   });
 
   it("backs off until the bucket unlocks on a rate limit, and keeps the loop alive", async () => {

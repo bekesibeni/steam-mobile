@@ -3,6 +3,7 @@ import type { ConfirmationManager } from "../community/confirmations.js";
 import { URLS } from "../core/constants.js";
 import { EConfirmationMethod, ETradeOfferState } from "../core/enums.js";
 import { ConfirmationError, SteamError, SteamSessionExpiredError } from "../core/errors.js";
+import { isTerminalState } from "../core/offerState.js";
 import type { OfferTarget, RawAsset, RawCEconTradeOffer, TradeItem } from "../core/types.js";
 import { httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
@@ -107,8 +108,9 @@ export class TradeOffer {
 
     const allItems = [...offer.itemsToGive, ...offer.itemsToReceive];
     offer.glitched =
-      allItems.length === 0 ||
-      (descriptions !== undefined && allItems.some((i) => !(i as EconItem).name));
+      !isTerminalState(offer.state) &&
+      (allItems.length === 0 ||
+        (descriptions !== undefined && allItems.some((i) => !(i as EconItem).name)));
     return offer;
   }
 

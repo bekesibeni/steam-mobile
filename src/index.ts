@@ -110,6 +110,7 @@ export type {
   PollDataStore,
   PollOptions,
   TradeEvents,
+  TradeOfferUpdate,
 } from "./trade/pollTypes.js";
 export { TradeNamespace } from "./trade/TradeNamespace.js";
 export {

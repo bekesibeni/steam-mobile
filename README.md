@@ -362,6 +362,7 @@ For your *own* inventory, prefer [`bot.community.getInventory`](#getinventoryapp
   - `pollData` — A saved [`PollData`](#polldata) snapshot to resume from (so a restart doesn't re-emit known offers).
   - `store` — A [`PollDataStore`](#polldatastore) loaded on start and saved after each changed tick (e.g. Redis-backed). Default: in-memory only.
   - `maxAgeMs` — Retention window in ms (default `2592000000`, 30d). Terminal offers older than this are pruned from the snapshot, and the full sweep is bounded to this window.
+  - `cancelTime` — If set, auto-cancels a sent offer still `Active` this many ms after its last update, emitting [`sentOfferCanceled`](#event-sentoffercanceled). Off by default.
 
 Starts the poll loop. The library does an **active poll** (recently-changed offers only) on the short
 interval and a periodic **full sweep** (offers updated within the retention window, to catch backdated
@@ -378,7 +379,7 @@ Stops the poll loop.
 - `options` — Optional. A [`PollOptions`](#polloptions) (used to configure the lazily-created poller on first call) plus `forceFull?` to force a full sweep this cycle.
 
 Runs a **single, timer-less** poll cycle, for driving cadence from an external scheduler (e.g. a BullMQ
-cron) instead of the built-in timer. Returns `Promise<{ changes: `[`PollChange`](#pollchange)`[]; pollData: PollData }>`.
+cron) instead of the built-in timer. Returns `Promise<{ changes:`[`PollChange`](#pollchange)`[]; pollData: PollData }>`.
 With a [`store`](#polldatastore) it loads the snapshot, diffs, emits the usual [events](#trade-events),
 saves, and returns the diff. `lastFullUpdate` is persisted inside `pollData`, so a fresh instance per
 job still keeps the full-sweep cadence (it won't degrade to a full sweep every call). The poller is
@@ -421,6 +422,24 @@ Emitted when an offer you sent changes state (e.g. the partner accepted or decli
 
 Emitted when polling sees a sent offer it has no record of — either sent out-of-band (not via this
 client) or seen on the first cold poll.
+
+#### Event: sentOfferCanceled
+
+- `offer` — The [TradeOffer](#tradeoffer) that was canceled.
+- `reason` — Why it was canceled; currently always `"cancelTime"`.
+
+Emitted when the poll loop auto-cancels a sent offer because it stayed `Active` past
+[`cancelTime`](#startpollingoptions). The resulting `Active → Canceled` transition also surfaces as a
+normal [`sentOfferChanged`](#event-sentofferchanged) on a later poll.
+
+#### Event: offerUpdate
+
+- `update` — A [`TradeOfferUpdate`](#tradeofferupdate) `{ offer, previousState? }`.
+
+Fires once for **every** offer change, alongside the specific named event above. `previousState` is
+`undefined` the first time an offer is observed; `offer.isOurOffer` distinguishes sent vs received. Use
+this when you want a single handler for all changes (e.g. forwarding to a queue); use the named events
+when you want to react to one kind.
 
 #### Event: pollData
 
@@ -901,7 +920,7 @@ interface PollData {
 
 See [`startPolling`](#startpollingoptions): `pollInterval?` (default 10000 ms), `pollFullUpdateInterval?`
 (default 300000 ms), `pollData?`, `store?` (a [`PollDataStore`](#polldatastore)), `maxAgeMs?` (default
-30d).
+30d), `cancelTime?` (off by default).
 
 ### PollDataStore
 
@@ -927,6 +946,18 @@ type PollChange =
   | { type: "sentOfferChanged"; offer: TradeOffer; oldState: ETradeOfferState }
   | { type: "receivedOfferChanged"; offer: TradeOffer; oldState: ETradeOfferState }
   | { type: "unknownOfferSent"; offer: TradeOffer };
+```
+
+### TradeOfferUpdate
+
+The payload of the [`offerUpdate`](#event-offerupdate) event — a unified view of any single offer
+change. `previousState` is `undefined` the first time an offer is seen; direction is `offer.isOurOffer`:
+
+```ts
+interface TradeOfferUpdate {
+  offer: TradeOffer;
+  previousState?: ETradeOfferState;
+}
 ```
 
 ### Confirmation
