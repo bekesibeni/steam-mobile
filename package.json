@@ -1,6 +1,6 @@
 {
   "name": "steam-mobile",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "Headless Steam mobile-app client (web-based, no CM) for trading.",
@@ -54,7 +54,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
-    "@bufbuild/buf": "^1.69.0",
+    "@bufbuild/buf": "^1.70.0",
     "@bufbuild/protoc-gen-es": "^2.12.0",
     "@types/node": "^22",
     "tsdown": "^0.22.0",
