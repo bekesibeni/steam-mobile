@@ -42,7 +42,8 @@
     "bootstrap": "tsx debug/bootstrap.ts",
     "smoke": "tsx debug/smoke.ts",
     "watch": "tsx debug/watch.ts",
-    "trade": "tsx debug/trade.ts"
+    "trade": "tsx debug/trade.ts",
+    "partner-inventory": "tsx debug/partnerInventory.ts"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.12.0",

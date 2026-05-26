@@ -61,6 +61,10 @@ export class ConfirmationManager {
     private readonly profile: MobileProfile,
   ) {}
 
+  get hasIdentitySecret(): boolean {
+    return Boolean(this.identitySecret);
+  }
+
   // The mobileconf `p` device id: iOS sends a bare uppercase UUID, Android the `android:`-prefixed one. Stable id only, not part of the `k` HMAC.
   private deviceId(): string {
     const android = SteamTotp.getDeviceID(this.steamID.getSteamID64());

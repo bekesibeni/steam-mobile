@@ -76,9 +76,16 @@ namespaces:
 
 **Shared (`src/core/`)** — `enums.ts`, `errors.ts` (everything extends `SteamError`), `types.ts` (raw
 Steam JSON shapes), `constants.ts` (endpoints, renewal thresholds), `rateLimits.ts`, `paginate.ts`,
-`target.ts` (`OfferTarget` resolution), `mobileProfile.ts` (iOS/Android wire profiles).
-`src/models/EconItem.ts` is the single item model + `buildItem`/`buildDescriptionMap` helpers.
-`src/crypto/` is vendored steam-totp + RSA (replaced the `steam-totp` dependency).
+`target.ts` (`OfferTarget` resolution), `mobileProfile.ts` (iOS/Android wire profiles),
+`parseStrError.ts` (Steam-message classifier — single source of truth that maps any Steam-supplied
+string, whether `body.strError` from send/accept or the `<div id="error_msg">` scraped from the trade
+page, to the right typed error: `TradeBanError`, `OfferLimitError`, `NewDeviceError`,
+`TargetCannotTradeError`, `ItemServerUnavailableError`, `PrivateInventoryError`, otherwise `SteamError`
+with trailing `(N)` parsed as eresult). `src/models/EconItem.ts` is the single item model +
+`buildItem`/`buildDescriptionMap` helpers. `src/crypto/` is vendored steam-totp + RSA (replaced the
+`steam-totp` dependency). `src/http/tradePageError.ts` does the lazy trade-page scrape on inventory
+failures — only fetches the HTML when the JSON endpoint already returned an error, then runs the
+scraped text through `parseStrError`.
 
 ## Conventions (load-bearing — violating these breaks behavior)
 
@@ -118,7 +125,9 @@ the `.proto` and regenerate — never hand-edit the generated file. Uses Protobu
 Debug scripts read a gitignored `.env` and reuse `./bot.refreshtoken` (also gitignored):
 `pnpm bootstrap` (credential login → save token), `pnpm smoke` (read-only health check of the whole API
 surface), `pnpm watch` (live trade-event watcher), `pnpm trade` (gated send→confirm→cancel; needs
-`SEND=1 PARTNER_TRADE_URL=…`). Constraints when running live:
+`SEND=1 PARTNER_TRADE_URL=…`), `pnpm partner-inventory` (load a partner's inventory via
+`/partnerinventory/`; surfaces typed inventory errors like `PrivateInventoryError`; needs
+`PARTNER_TRADE_URL=…`). Constraints when running live:
 
 - The current test account is **limited** (hasn't spent the $5 that lifts Steam's anti-spam limit).
   Limited accounts **can still trade** (subject to Steam Guard / escrow holds) but can't use the market

@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import SteamID from "steamid";
 import { EAuthSessionGuardType } from "../core/enums.js";
-import { LoginError } from "../core/errors.js";
+import { LoginError, NoMobileAuthenticatorError } from "../core/errors.js";
 import type { MobileProfile } from "../core/mobileProfile.js";
 import { encryptPassword } from "../crypto/rsa.js";
 import { getAuthCode } from "../crypto/steamTotp.js";
@@ -18,7 +18,6 @@ export interface CredentialSessionEvents {
   // No code could be supplied automatically; caller must submitSteamGuardCode().
   steamGuardRequired: [info: { type: EAuthSessionGuardType; message: string }];
   remoteInteraction: [];
-  steamGuardMachineToken: [token: string];
 }
 
 export interface CredentialStartOptions {
@@ -26,7 +25,6 @@ export interface CredentialStartOptions {
   password: string;
   sharedSecret?: string; // answers DeviceCode automatically via TOTP
   steamGuardCode?: string;
-  machineToken?: string;
 }
 
 const DEFAULT_POLL_TIMEOUT_MS = 180_000;
@@ -48,7 +46,6 @@ export class CredentialSession extends EventEmitter<CredentialSessionEvents> {
   username = "";
   accessToken: string | undefined;
   refreshToken: string | undefined;
-  steamGuardMachineToken: string | undefined;
 
   constructor(
     http: HttpClient,
@@ -74,7 +71,6 @@ export class CredentialSession extends EventEmitter<CredentialSessionEvents> {
       websiteId: "Mobile",
       deviceDetails: buildDeviceDetails(this.profile),
       language: 0,
-      ...(opts.machineToken ? { guardData: opts.machineToken } : {}),
     });
 
     // A successful begin always returns a request_id; its absence (not clientId, which can be 0n)
@@ -121,6 +117,12 @@ export class CredentialSession extends EventEmitter<CredentialSessionEvents> {
       this.emit("debug", "answering DeviceCode with generated TOTP");
       await this.submitCode(code, EAuthSessionGuardType.DeviceCode);
       return;
+    }
+
+    // sharedSecret was supplied but the account isn't TOTP-protected — fail loud rather than fall through
+    // to an "email code required" prompt the caller can't satisfy with what they provided.
+    if (opts.sharedSecret && !allowed.includes(EAuthSessionGuardType.DeviceCode)) {
+      throw new NoMobileAuthenticatorError();
     }
 
     if (opts.steamGuardCode) {
@@ -191,10 +193,6 @@ export class CredentialSession extends EventEmitter<CredentialSessionEvents> {
     }
 
     if (res.hadRemoteInteraction) this.emitRemoteInteraction();
-    if (res.newGuardData) {
-      this.steamGuardMachineToken = res.newGuardData;
-      this.emit("steamGuardMachineToken", res.newGuardData);
-    }
     if (res.newClientId) this.clientId = res.newClientId;
     if (res.accessToken) this.accessToken = res.accessToken;
 

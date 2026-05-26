@@ -5,11 +5,13 @@ import { DEFAULT_CONTEXTID, LANG, URLS } from "../core/constants.js";
 import { EOfferFilter } from "../core/enums.js";
 import { SteamError } from "../core/errors.js";
 import { type Page, paginate } from "../core/paginate.js";
+import { parseStrError } from "../core/parseStrError.js";
 import { RETRY_AFTER } from "../core/rateLimits.js";
 import { resolveTarget } from "../core/target.js";
 import type { OfferTarget, RawAsset, RawCEconTradeOffer } from "../core/types.js";
 import { httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
+import { inventoryFailureError } from "../http/tradePageError.js";
 import type { WebApiClient } from "../http/webApi.js";
 import {
   buildDescriptionMap,
@@ -239,9 +241,12 @@ export class TradeNamespace extends EventEmitter<TradeEvents> {
         },
       );
 
-      if (res.statusCode !== 200) throw httpError(res, RETRY_AFTER.partnerInventory);
       const body = res.body;
-      if (!body?.success) throw new SteamError(body?.error ?? "Failed to load partner inventory");
+      if (res.statusCode === 500 && body?.error) throw parseStrError(body.error);
+      if (res.statusCode !== 200) throw httpError(res, RETRY_AFTER.partnerInventory);
+      if (!body?.success) {
+        throw await inventoryFailureError(this.http, steamId, token, body?.error ?? body?.Error);
+      }
 
       // Continue only when more_start actually advances, else a stuck cursor loops forever.
       const next =

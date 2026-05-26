@@ -95,9 +95,8 @@ When you don't yet have a refresh token, use `loginWithCredentials`. This drives
 - `options`
   - `username` — Your Steam account name (login name, not persona).
   - `password` — Your account password.
-  - `sharedSecret` — Optional. Your TOTP `shared_secret`. If present, device (TOTP) Steam Guard codes are answered automatically.
+  - `sharedSecret` — Optional. Your TOTP `shared_secret`. If present, device (TOTP) Steam Guard codes are answered automatically. If the account has **no mobile authenticator** (email Steam Guard only), this rejects up-front with a `NoMobileAuthenticatorError` rather than silently falling through.
   - `steamGuardCode` — Optional. A Steam Guard code you supply yourself (email or device).
-  - `machineToken` — Optional. A previously-issued Steam Guard machine token (`guard_data`) to skip the Guard prompt.
   - `proxy` — Optional. A proxy URL; routes the entire login flow.
   - `mobileProfile` — Optional. `"ios"` (default), `"android"`, or an object overriding individual [profile fields](#mobile-app-impersonation).
   - `signal` — Optional. An `AbortSignal`; aborting stops polling and rejects with a `LoginError`.
@@ -109,7 +108,6 @@ Returns a `Promise` that resolves to a **`LoginResult`**:
 - `accessToken` — The freshly-minted access token, or `undefined` if Steam didn't return one.
 - `steamId` — The account's SteamID64, as a string.
 - `username` — The account name Steam echoed back.
-- `steamGuardMachineToken` — A machine token to reuse as `machineToken` next time, or `undefined`.
 
 ```ts
 import { loginWithCredentials, SteamMobile } from "steam-mobile";
@@ -134,15 +132,14 @@ finer-grained control over the state machine (events for each step, manual code 
 need to react to each step.
 
 - `new CredentialSession(http, profile[, pollTimeoutMs])` — `http` is an `HttpClient`, `profile` a resolved [`MobileProfile`](#mobile-app-impersonation), `pollTimeoutMs` defaults to 180000.
-- `start(options)` — Begins the flow. `options` is the credentials (`username`, `password`, `sharedSecret?`, `steamGuardCode?`, `machineToken?`). Returns `Promise<void>`.
+- `start(options)` — Begins the flow. `options` is the credentials (`username`, `password`, `sharedSecret?`, `steamGuardCode?`). Throws `NoMobileAuthenticatorError` synchronously inside `start()` if `sharedSecret` was supplied but the account isn't TOTP-protected. Returns `Promise<void>`.
 - `submitSteamGuardCode(code)` — Supplies a code in response to a `steamGuardRequired` event. Returns `Promise<void>`.
 - `stop()` — Aborts the flow and clears the poll timer.
-- Properties (populated as the flow progresses): `steamID?`, `username`, `accessToken?`, `refreshToken?`, `steamGuardMachineToken?`.
+- Properties (populated as the flow progresses): `steamID?`, `username`, `accessToken?`, `refreshToken?`.
 - Events:
   - `authenticated` — A refresh token is available; read it off the instance.
   - `steamGuardRequired` — `{ type, message }`. No code could be supplied automatically; call `submitSteamGuardCode()`.
   - `remoteInteraction` — Steam is waiting for the user to approve on their phone (device/email confirmation).
-  - `steamGuardMachineToken` — `token`. A new machine token to reuse next time as `machineToken`.
   - `timeout` — The confirmation window elapsed.
   - `error` — `error`. The flow failed.
   - `debug` — `message`. Verbose step logging.
@@ -354,6 +351,10 @@ which is the reliable way to see a partner's items — including trade-protected
 `/inventory/` endpoint hides. Returns `Promise<`[`EconItem`](#econitem)`[]>`, paginated automatically.
 For your *own* inventory, prefer [`bot.community.getInventory`](#getinventoryappid-contextid-options).
 
+On failure, the partner's trade page is lazily scraped for Steam's `<div id="error_msg">` and the
+message is classified into the right typed [error](#errors) (`PrivateInventoryError`,
+`TradeBanError`, `TargetCannotTradeError`, `ItemServerUnavailableError`, …).
+
 ### startPolling(\[options])
 
 - `options` — Optional [`PollOptions`](#polloptions):
@@ -545,8 +546,10 @@ Alias for [`cancel()`](#cancel); use it for readability on received offers.
 ### confirm()
 
 Accepts the pending mobile confirmation for this offer (after `send()`/`accept()` returned
-`"needs_confirmation"`). Requires `identitySecret`. Returns `Promise<void>`. Throws a
-`ConfirmationError` if the offer is unsent or no matching confirmation is found.
+`"needs_confirmation"`). Returns `Promise<void>`. Throws a `ConfirmationError` immediately if the
+offer is unsent, if `identitySecret` wasn't supplied to the `SteamMobile` constructor (named-fix
+message: *"identitySecret is required to confirm trade offers — construct SteamMobile with
+{ identitySecret }"*), or if no matching confirmation is found.
 
 ### counter()
 
@@ -590,8 +593,9 @@ Account- and profile-level helpers backed by `steamcommunity.com` and a couple o
   - `tradableOnly` — Optional. Tradable items only.
 
 Loads your own inventory — or any **public** inventory — via the `/inventory/` endpoint. Returns
-`Promise<`[`EconItem`](#econitem)`[]>`, paginated automatically. Throws `"This profile is private."` on
-a private inventory. For a trade **partner's** inventory, use
+`Promise<`[`EconItem`](#econitem)`[]>`, paginated automatically. Throws `PrivateInventoryError` on a
+private inventory (the lazy trade-page scrape also classifies trade-ban / target-cannot-trade / item-
+server-unavailable errors into their typed counterparts). For a trade **partner's** inventory, use
 [`bot.trade.getInventory`](#getinventorytarget-appid-contextid-options) instead — `/partnerinventory/`
 is the only path that reveals trade-protected items.
 
@@ -1019,6 +1023,10 @@ Every error extends **`SteamError`**, which carries an optional `eresult` (a Ste
 (the raw response). The library **classifies** errors but does not implement a cooldown policy — retry
 logic stays in your code.
 
+Steam-supplied messages (the `strError` field on send/accept/cancel responses **and** the
+`<div id="error_msg">` text scraped from the trade page when an inventory load fails) are run through
+one shared classifier so the same `instanceof` check works everywhere.
+
 | Class | Extra fields | Meaning |
 | ----- | ------------ | ------- |
 | `SteamError` | `eresult?`, `body?` | Base class for everything. |
@@ -1029,9 +1037,14 @@ logic stays in your code.
 | `EscrowError` | `escrowDays` | The trade would be (or is) held in escrow. |
 | `TradeBanError` | — | The account is trade-banned. |
 | `OfferLimitError` | `eresult = 25` | Sent too many offers. |
-| `ConfirmationError` | — | A mobile-confirmation step failed. |
+| `TargetCannotTradeError` | `eresult?` | Partner is not available to trade (limited, escrow-only, etc.). |
+| `NewDeviceError` | `eresult?` | Steam blocks the action because we logged in from a new device recently. |
+| `ItemServerUnavailableError` | `eresult = 102` | The game's item server (its Game Coordinator) is unreachable — transient, per-app, retry shortly. |
+| `PrivateInventoryError` | — | Partner's inventory is private (or friends-only and we're not friends). A trade URL/token does **not** bypass inventory privacy. |
+| `ConfirmationError` | — | A mobile-confirmation step failed (incl. missing `identitySecret` when calling [`offer.confirm()`](#confirm)). |
 | `FamilyViewError` | — | Family View is restricting the account. |
 | `LoginError` | `extendedErrorMessage?`, `isTransient` | Credential-login failure; `isTransient` is `true` for a retryable blip (timeout / service unavailable) rather than bad credentials. |
+| `NoMobileAuthenticatorError` | (extends `LoginError`) | `sharedSecret` was supplied but the account has no mobile authenticator attached, so TOTP can't answer the guard challenge. Use `steamGuardCode` / `onSteamGuardRequired` with an email code instead. |
 
 `unlockAt` / `retryAfterMs` on `RateLimitError` are never `undefined`, so a cooldown is just
 `cooldownUntil = err.unlockAt`:
@@ -1103,8 +1116,9 @@ pnpm proto       # regenerate src/protobufs from protobufs/*.proto (buf + protoc
 Live debug scripts live in `debug/` and read a `.env` for credentials:
 
 ```bash
-pnpm bootstrap   # credential login → save ./bot.refreshtoken (run once)
-pnpm smoke       # read-only health check across the whole API
-pnpm watch       # live trade-event watcher — send the bot a trade and watch it fire
-pnpm trade       # send → confirm → cancel lifecycle (gated: SEND=1 PARTNER_TRADE_URL=…; needs a non-limited bot)
+pnpm bootstrap          # credential login → save ./bot.refreshtoken (run once)
+pnpm smoke              # read-only health check across the whole API
+pnpm watch              # live trade-event watcher — send the bot a trade and watch it fire
+pnpm trade              # send → confirm → cancel lifecycle (gated: SEND=1 PARTNER_TRADE_URL=…; needs a non-limited bot)
+pnpm partner-inventory  # load a partner's inventory via /partnerinventory/ (PARTNER_TRADE_URL=…; surfaces PrivateInventoryError etc.)
 ```

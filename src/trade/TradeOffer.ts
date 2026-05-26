@@ -4,13 +4,13 @@ import { URLS } from "../core/constants.js";
 import { EConfirmationMethod, ETradeOfferState } from "../core/enums.js";
 import { ConfirmationError, SteamError, SteamSessionExpiredError } from "../core/errors.js";
 import { isTerminalState } from "../core/offerState.js";
+import { parseStrError } from "../core/parseStrError.js";
 import type { OfferTarget, RawAsset, RawCEconTradeOffer, TradeItem } from "../core/types.js";
 import { httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
 import { buildItem, type EconItem, type RawDescription } from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
 import type { ExchangeDetails } from "./exchange.js";
-import { parseStrError } from "./strError.js";
 import type { TradeNamespace } from "./TradeNamespace.js";
 
 export type SendResult = "sent" | "needs_confirmation";
@@ -296,6 +296,11 @@ export class TradeOffer {
 
   async confirm(): Promise<void> {
     if (!this.id) throw new ConfirmationError("Cannot confirm an unsent offer");
+    if (!this.deps.confirmations.hasIdentitySecret) {
+      throw new ConfirmationError(
+        "identitySecret is required to confirm trade offers — construct SteamMobile with { identitySecret }",
+      );
+    }
     await this.deps.confirmations.acceptConfirmationForObject(this.id);
   }
 

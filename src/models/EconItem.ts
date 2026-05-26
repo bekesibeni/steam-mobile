@@ -86,6 +86,7 @@ export interface RawInventoryResponse {
 export interface RawPartnerInventoryResponse {
   success?: boolean;
   error?: string;
+  Error?: string;
   rgInventory?: Record<string, RawInventoryAsset> | unknown[];
   rgDescriptions?: Record<string, RawDescription> | unknown[];
   rgAssetProperties?: Record<string, AssetProperty[]> | unknown[];

@@ -88,6 +88,33 @@ export class OfferLimitError extends SteamError {
   }
 }
 
+// Steam blocks the action because we logged in from a new device recently.
+export class NewDeviceError extends SteamError {
+  constructor(message = "You have logged in from a new device", options?: { eresult?: number }) {
+    super(message, options);
+    this.name = "NewDeviceError";
+  }
+}
+
+// Target account is not in a state where it can complete trades (limited, escrow-only, etc.).
+export class TargetCannotTradeError extends SteamError {
+  constructor(message = "This user is not available to trade", options?: { eresult?: number }) {
+    super(message, options);
+    this.name = "TargetCannotTradeError";
+  }
+}
+
+// The game's item server (its Game Coordinator) is unreachable — transient, per-app, retry later.
+export class ItemServerUnavailableError extends SteamError {
+  constructor(
+    message = "Steam is currently unable to contact the game's item server",
+    options?: { eresult?: number },
+  ) {
+    super(message, { eresult: options?.eresult ?? 102 });
+    this.name = "ItemServerUnavailableError";
+  }
+}
+
 export class ConfirmationError extends SteamError {
   constructor(message: string) {
     super(message);
@@ -99,6 +126,15 @@ export class FamilyViewError extends SteamError {
   constructor(message = "Family View Restricted") {
     super(message);
     this.name = "FamilyViewError";
+  }
+}
+
+// Partner/profile inventory is private (or friends-only and we're not friends).
+// A trade URL/token does NOT bypass inventory privacy — only inventory privacy does.
+export class PrivateInventoryError extends SteamError {
+  constructor(message = "This profile's inventory is private.") {
+    super(message);
+    this.name = "PrivateInventoryError";
   }
 }
 
@@ -115,5 +151,16 @@ export class LoginError extends SteamError {
     this.name = "LoginError";
     this.extendedErrorMessage = options?.extendedErrorMessage;
     this.isTransient = isTransientEResult(options?.eresult);
+  }
+}
+
+// sharedSecret was supplied but the account has no mobile authenticator attached, so TOTP can't
+// answer the guard challenge. Use steamGuardCode / onSteamGuardRequired with an email code instead.
+export class NoMobileAuthenticatorError extends LoginError {
+  constructor(
+    message = "account has no mobile authenticator attached; sharedSecret cannot be used (account uses email Steam Guard)",
+  ) {
+    super(message);
+    this.name = "NoMobileAuthenticatorError";
   }
 }

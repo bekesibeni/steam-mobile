@@ -12,7 +12,6 @@ export interface LoginWithCredentialsOptions {
   password: string;
   sharedSecret?: string; // answers DeviceCode automatically via TOTP
   steamGuardCode?: string;
-  machineToken?: string;
   proxy?: string;
   mobileProfile?: MobilePlatform | Partial<MobileProfile>;
   // Aborts the flow: stops polling and rejects with a LoginError.
@@ -26,7 +25,6 @@ export interface LoginResult {
   accessToken: string | undefined;
   steamId: string;
   username: string;
-  steamGuardMachineToken: string | undefined;
 }
 
 // One-shot credential login → MobileApp refresh token. Feed into `new SteamMobile({ refreshToken })`.
@@ -67,7 +65,6 @@ export function loginWithCredentials(opts: LoginWithCredentialsOptions): Promise
         accessToken: session.accessToken,
         steamId: session.steamID.getSteamID64(),
         username: session.username,
-        steamGuardMachineToken: session.steamGuardMachineToken,
       });
     });
 

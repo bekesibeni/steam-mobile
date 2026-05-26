@@ -53,3 +53,9 @@ export async function login(): Promise<DebugLogin> {
     cookieHeader,
   };
 }
+
+
+login().catch((e) => {
+  console.error("\n❌ partnerInventory FAIL:", (e as Error)?.message ?? e);
+  process.exit(1);
+});

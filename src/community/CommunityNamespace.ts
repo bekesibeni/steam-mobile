@@ -2,11 +2,13 @@ import SteamID from "steamid";
 import { DEFAULT_CONTEXTID, LANG, URLS } from "../core/constants.js";
 import { SteamError } from "../core/errors.js";
 import { type Page, paginate } from "../core/paginate.js";
+import { parseStrError } from "../core/parseStrError.js";
 import { RETRY_AFTER } from "../core/rateLimits.js";
 import { resolveTarget } from "../core/target.js";
 import type { OfferTarget } from "../core/types.js";
 import { checkCommunityError, httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
+import { inventoryFailureError } from "../http/tradePageError.js";
 import type { WebApiClient } from "../http/webApi.js";
 import {
   type EconItem,
@@ -245,7 +247,9 @@ export class CommunityNamespace {
       });
       if (res.statusCode !== 200) throw httpError(res, RETRY_AFTER.inventory);
       const body = res.body;
-      if (!body?.success) throw new SteamError(body?.error ?? "Malformed inventory response");
+      if (!body?.success) {
+        throw new SteamError(body?.error ?? body?.Error ?? "Malformed inventory response");
+      }
 
       // Continue only when more_start actually advances, else a stuck cursor loops forever.
       const next =
@@ -278,12 +282,24 @@ export class CommunityNamespace {
       });
       const body = res.body;
 
-      if (res.statusCode === 403 && !body) throw new SteamError("This profile is private.");
-      if (res.statusCode === 500 && body?.error) throw parseInventoryError(body.error);
+      if (res.statusCode === 403 && !body) {
+        throw await inventoryFailureError(
+          this.http,
+          steamId,
+          undefined,
+          "This profile is private.",
+        );
+      }
+      if (res.statusCode === 500 && body?.error) throw parseStrError(body.error);
       if (res.statusCode !== 200) throw httpError(res, RETRY_AFTER.inventory);
 
       if (!body?.success) {
-        throw new SteamError(body?.error ?? body?.Error ?? "Malformed inventory response");
+        throw await inventoryFailureError(
+          this.http,
+          steamId,
+          undefined,
+          body?.error ?? body?.Error,
+        );
       }
       // Empty inventory: Steam returns success with no assets.
       if (!body.assets) return { items: [], next: undefined };
@@ -294,12 +310,6 @@ export class CommunityNamespace {
       };
     });
   }
-}
-
-function parseInventoryError(error: string): SteamError {
-  const match = error.match(/^(.+) \((\d+)\)$/);
-  if (match?.[1]) return new SteamError(match[1], { eresult: Number(match[2]) });
-  return new SteamError(error);
 }
 
 // Read a profile-XML element's text, tolerating optional CDATA wrapping.
