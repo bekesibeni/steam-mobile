@@ -9,13 +9,14 @@ export {
   type LoginWithCredentialsOptions,
   loginWithCredentials,
 } from "./auth/loginWithCredentials.js";
-export type {
-  GetInventoryOptions,
-  SteamProfile,
-  UserCheck,
-} from "./community/CommunityNamespace.js";
+export type { GetInventoryOptions, SteamProfile } from "./community/CommunityNamespace.js";
 export { CommunityNamespace } from "./community/CommunityNamespace.js";
 export { type Confirmation, ConfirmationManager } from "./community/confirmations.js";
+export type {
+  UserDetails,
+  UserPartnerDetails,
+  UserSideDetails,
+} from "./community/userDetails.js";
 export { DEFAULT_CONTEXTID, LANG, URLS } from "./core/constants.js";
 export {
   EAuthSessionGuardType,
@@ -112,7 +113,11 @@ export type {
   TradeEvents,
   TradeOfferUpdate,
 } from "./trade/pollTypes.js";
-export { TradeNamespace } from "./trade/TradeNamespace.js";
+export {
+  type EscrowHold,
+  type EscrowSide,
+  TradeNamespace,
+} from "./trade/TradeNamespace.js";
 export {
   type AcceptResult,
   type SendResult,

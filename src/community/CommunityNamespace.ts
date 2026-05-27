@@ -1,11 +1,8 @@
-import SteamID from "steamid";
 import { DEFAULT_CONTEXTID, LANG, URLS } from "../core/constants.js";
 import { SteamError } from "../core/errors.js";
 import { type Page, paginate } from "../core/paginate.js";
 import { parseStrError } from "../core/parseStrError.js";
 import { RETRY_AFTER } from "../core/rateLimits.js";
-import { resolveTarget } from "../core/target.js";
-import type { OfferTarget } from "../core/types.js";
 import { checkCommunityError, httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
 import { inventoryFailureError } from "../http/tradePageError.js";
@@ -19,20 +16,12 @@ import {
 } from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
 import type { ConfirmationManager } from "./confirmations.js";
+import { acknowledgeTradeProtection } from "./tradeProtection.js";
 
 const INVENTORY_PAGE_SIZE = 2000;
 
 export interface GetInventoryOptions {
   steamId?: string;
-  tradableOnly?: boolean;
-}
-
-export interface UserCheck {
-  escrowDays: number;
-  myEscrowDays: number;
-  theirEscrowDays: number;
-  probation: boolean;
-  contexts: Record<string, unknown> | null;
 }
 
 export interface SteamProfile {
@@ -54,42 +43,8 @@ export class CommunityNamespace {
     private readonly api: WebApiClient,
   ) {}
 
-  // Escrow hold + probation, scraped from the trade page (mobile token gets AccessDenied on GetTradeHoldDurations).
-  async checkUser(target: OfferTarget): Promise<UserCheck> {
-    await this.session.getAccessToken();
-    const { steamId, token } = resolveTarget(target);
-    const accountId = new SteamID(steamId).accountid;
-    const url = `${URLS.community}/tradeoffer/new/?partner=${accountId}${token ? `&token=${token}` : ""}`;
-    const res = await this.http.get<string>(url, {
-      responseType: "text",
-      headers: { Referer: `${URLS.community}/profiles/${steamId}` },
-    });
-    if (res.statusCode !== 200) throw httpError(res);
-    const html = res.body;
-    checkCommunityError(html);
-
-    if (!html.includes("g_rgAppContextData")) {
-      throw new SteamError("Failed to load the trade page for this user");
-    }
-
-    const myEscrowDays = matchInt(html, /var g_daysMyEscrow = (\d+);/);
-    const theirEscrowDays = matchInt(html, /var g_daysTheirEscrow = (\d+);/);
-    // Fail loud rather than report a misleading 0 — callers trust 0 to mean "no hold".
-    if (myEscrowDays === null || theirEscrowDays === null) {
-      throw new SteamError("Failed to parse escrow durations from the trade page");
-    }
-
-    return {
-      escrowDays: Math.max(myEscrowDays, theirEscrowDays),
-      myEscrowDays,
-      theirEscrowDays,
-      probation: /g_bTradePartnerProbation\s*=\s*(?:true|1)\b/.test(html),
-      contexts: matchJson(html, /g_rgPartnerAppContextData\s*=\s*(\{.*\});/),
-    };
-  }
-
-  async acknowledgeTradeProtection(): Promise<void> {
-    await this.confirmations.acknowledgeTradeProtection();
+  acknowledgeTradeProtection(): Promise<void> {
+    return acknowledgeTradeProtection(this.http);
   }
 
   // Our trade URL, scraped from /profiles/<id>/tradeoffers/privacy directly (we know our steamid; skip upstream's /my redirect).
@@ -219,26 +174,26 @@ export class CommunityNamespace {
     await this.session.getAccessToken();
     const ownId = this.session.steamID.getSteamID64();
     const steamId = options.steamId ?? ownId;
-    const tradableOnly = options.tradableOnly ?? false;
     return steamId === ownId
-      ? this.getOwnInventory(steamId, appid, contextid, tradableOnly)
-      : this.getOtherInventory(steamId, appid, contextid, tradableOnly);
+      ? this.getOwnInventoryItems(steamId, appid, contextid)
+      : this.getTheirInventory(steamId, appid, contextid);
   }
 
-  // Own inventory uses the legacy /inventory/json/ endpoint: near-nonexistent rate limits, a server-side
-  // `trading` filter, and it surfaces trade-protected items. Same rg* shape as /partnerinventory/.
-  private getOwnInventory(
+  // Own inventory uses the legacy /inventory/json/ endpoint: near-nonexistent rate limits, surfaces
+  // trade-protected items, and the rg* response shape matches /partnerinventory/. The modern
+  // IEconService/GetInventoryItemsWithDescriptions endpoint trips Steam's silent throttle (returns
+  // {response:{}}) on ≥2 calls/sec, which makes it unfit for repeated use.
+  private getOwnInventoryItems(
     steamId: string,
     appid: number,
     contextid: string,
-    tradableOnly: boolean,
   ): Promise<EconItem[]> {
     const url = `${URLS.community}/profiles/${steamId}/inventory/json/${appid}/${contextid}`;
     return paginate<EconItem, number>(async (start): Promise<Page<EconItem, number>> => {
       const res = await this.http.get<RawPartnerInventoryResponse>(url, {
         responseType: "json",
         searchParams: {
-          trading: tradableOnly ? 1 : 0,
+          trading: 0,
           preserve_bbcode: 1,
           l: LANG.l,
           ...(start !== undefined ? { start } : {}),
@@ -251,21 +206,19 @@ export class CommunityNamespace {
         throw new SteamError(body?.error ?? body?.Error ?? "Malformed inventory response");
       }
 
-      // Continue only when more_start actually advances, else a stuck cursor loops forever.
       const next =
         body.more && typeof body.more_start === "number" && body.more_start > (start ?? 0)
           ? body.more_start
           : undefined;
-      return { items: parsePartnerInventory(body, contextid, tradableOnly), next };
+      return { items: parsePartnerInventory(body, contextid), next };
     });
   }
 
-  // Others' inventory uses the new /inventory/ endpoint (the legacy one only serves the logged-in user).
-  private getOtherInventory(
+  // Their inventory uses the new /inventory/ endpoint (the legacy one only serves the logged-in user).
+  private getTheirInventory(
     steamId: string,
     appid: number,
     contextid: string,
-    tradableOnly: boolean,
   ): Promise<EconItem[]> {
     const url = `${URLS.community}/inventory/${steamId}/${appid}/${contextid}`;
     return paginate<EconItem, string>(async (startAssetId): Promise<Page<EconItem, string>> => {
@@ -305,7 +258,7 @@ export class CommunityNamespace {
       if (!body.assets) return { items: [], next: undefined };
 
       return {
-        items: parseInventory(body, contextid, tradableOnly),
+        items: parseInventory(body, contextid),
         next: body.more_items && body.last_assetid ? body.last_assetid : undefined,
       };
     });
@@ -316,19 +269,4 @@ export class CommunityNamespace {
 function xmlValue(xml: string, tag: string): string | undefined {
   const m = xml.match(new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tag}>`));
   return m?.[1]?.trim() || undefined;
-}
-
-function matchInt(html: string, re: RegExp): number | null {
-  const m = html.match(re);
-  return m?.[1] !== undefined ? Number.parseInt(m[1], 10) : null;
-}
-
-function matchJson(html: string, re: RegExp): Record<string, unknown> | null {
-  const m = html.match(re);
-  if (!m?.[1]) return null;
-  try {
-    return JSON.parse(m[1]) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
 }

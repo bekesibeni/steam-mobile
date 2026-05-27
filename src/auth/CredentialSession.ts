@@ -180,8 +180,6 @@ export class CredentialSession extends EventEmitter<CredentialSessionEvents> {
     try {
       res = await this.auth.pollAuthSessionStatus(this.clientId, this.requestId);
     } catch (err) {
-      // Transient poll errors shouldn't abort the login (e.g. a blip while the user approves on
-      // their phone); keep polling until the deadline, like steam-session does.
       if (Date.now() >= this.deadline) {
         this.stop();
         this.emit("timeout");

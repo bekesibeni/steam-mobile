@@ -15,12 +15,20 @@ async function main(): Promise<void> {
   const giveContextId = process.env.GIVE_CONTEXTID ?? "2";
 
   const { bot } = await login();
-  console.log(`bot: ${bot.steamID.getSteamID64()}  identitySecret: ${bot.identitySecret ? "set" : "MISSING"}`);
+  console.log(
+    `bot: ${bot.steamID.getSteamID64()}  identitySecret: ${bot.identitySecret ? "set" : "MISSING"}`,
+  );
 
   if (partnerTradeUrl) {
-    console.log("checkUser:", JSON.stringify(await bot.community.checkUser({ tradeUrl: partnerTradeUrl })));
+    const target = { tradeUrl: partnerTradeUrl };
+    const [details, escrow] = await Promise.all([
+      bot.trade.getUserDetails(target),
+      bot.trade.getEscrow(target),
+    ]);
+    console.log("getUserDetails:", JSON.stringify(details));
+    console.log("getEscrow:", JSON.stringify(escrow));
   } else {
-    console.log("checkUser: skipped (set PARTNER_TRADE_URL)");
+    console.log("getUserDetails/getEscrow: skipped (set PARTNER_TRADE_URL)");
   }
 
   if (!doSend) {
@@ -32,8 +40,8 @@ async function main(): Promise<void> {
 
   let giveAssetId = process.env.GIVE_ASSETID;
   if (!giveAssetId) {
-    const inv = await bot.community.getInventory(giveAppId, giveContextId, { tradableOnly: true });
-    const pick = inv[0] as EconItem | undefined;
+    const inv = await bot.community.getInventory(giveAppId, giveContextId);
+    const pick = inv.find((i) => i.tradable) as EconItem | undefined;
     if (!pick) throw new Error(`no tradable item in bot ${giveAppId}/${giveContextId} inventory`);
     giveAssetId = pick.assetid;
     console.log(`auto-picked give item: ${pick.market_hash_name} (assetid=${giveAssetId})`);

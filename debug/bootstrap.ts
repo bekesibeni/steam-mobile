@@ -23,7 +23,10 @@ async function main(): Promise<void> {
     refreshToken: r.refreshToken,
     ...(STEAM.proxy ? { proxy: STEAM.proxy } : {}),
   }).login();
-  console.log(`mint OK — getTradeOffers returned ${(await bot.trade.getTradeOffers()).length}`);
+  const { sent, received } = await bot.trade.getTradeOffers();
+  console.log(
+    `mint OK — getTradeOffers returned ${sent.length} sent + ${received.length} received`,
+  );
   await bot.shutdown();
   console.log("\n✅ bootstrap done\n");
   process.exit(0);

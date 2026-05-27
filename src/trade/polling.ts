@@ -14,7 +14,7 @@ const MINIMUM_POLL_INTERVAL = 1000;
 const OFFER_MAX_LIFETIME_MS = 1_209_600_000;
 
 export interface PollSource {
-  getOffers(
+  getTradeOffers(
     filter: EOfferFilter,
     historicalCutoff: Date,
   ): Promise<{ sent: TradeOffer[]; received: TradeOffer[] }>;
@@ -145,7 +145,7 @@ export class Poller {
       `Polling trade offers since ${cutoff}${fullUpdate ? " (full update)" : ""}`,
     );
 
-    const result = await this.source.getOffers(
+    const result = await this.source.getTradeOffers(
       fullUpdate ? EOfferFilter.All : EOfferFilter.ActiveOnly,
       new Date(cutoff * 1000),
     );

@@ -51,7 +51,9 @@ class FakeSource implements PollSource {
   failNext(e: Error): void {
     this.err = e;
   }
-  async getOffers(filter: EOfferFilter): Promise<{ sent: TradeOffer[]; received: TradeOffer[] }> {
+  async getTradeOffers(
+    filter: EOfferFilter,
+  ): Promise<{ sent: TradeOffer[]; received: TradeOffer[] }> {
     this.filters.push(filter);
     if (this.err) {
       const e = this.err;

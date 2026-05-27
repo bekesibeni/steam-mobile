@@ -57,7 +57,7 @@ const bot = await new SteamMobile({
 
 console.log("Logged in as", bot.steamID.getSteamID64());
 
-const { sent, received } = await bot.trade.getOffers();
+const { sent, received } = await bot.trade.getTradeOffers();
 console.log(`${sent.length} sent, ${received.length} received`);
 ```
 
@@ -278,7 +278,7 @@ Fetches a single offer and returns it as a [TradeOffer](#tradeoffer). Item descr
 (`get_descriptions=1`), so the offer's items are full [`EconItem`](#econitem)s. Rejects with a
 `SteamError` if the offer doesn't exist.
 
-### getOffers(\[filter]\[, historicalCutoff])
+### getTradeOffers(\[filter]\[, historicalCutoff])
 
 - `filter` — Optional. A value from [`EOfferFilter`](#eofferfilter) (default `ActiveOnly`).
 - `historicalCutoff` — Optional. A `Date`. When `filter` includes historical offers, only offers updated at or after this time are returned. Defaults to one year in the future (i.e. "active only").
@@ -288,13 +288,6 @@ internally and inlines descriptions into every offer's items. If Steam returns t
 "data temporarily unavailable" glitch (all offers missing partner/items), this rejects with a
 `SteamError` rather than handing back garbage.
 
-### getTradeOffers(\[filter])
-
-- `filter` — Optional. A value from [`EOfferFilter`](#eofferfilter) (default `ActiveOnly`).
-
-A convenience wrapper around `getOffers` that returns the sent and received arrays merged into one
-`Promise<TradeOffer[]>`.
-
 ### getTradeStatus({tradeId})
 
 - `tradeId` — The **trade id** (not the offer id). This is set on a [TradeOffer](#tradeoffer) once it's accepted (`offer.tradeID`).
@@ -302,6 +295,27 @@ A convenience wrapper around `getOffers` that returns the sent and received arra
 Returns settlement details for a completed or escrowed trade as a `Promise<`[`ExchangeDetails`](#exchangedetails)`>`,
 including where each item *landed* after the trade (`new_assetid` / `new_contextid`, when Steam provides
 them). See [`offer.getTradeStatus()`](#gettradestatus) for the offer-level shortcut.
+
+### getUserDetails(target)
+
+- `target` — An [`OfferTarget`](#offertarget) (typically `{ tradeUrl }`).
+
+Persona, contexts, escrow days, avatars, and partner probation for both sides — same scrape as
+[`offer.getUserDetails()`](#getuserdetails) but addressed by target, so you don't need an offer in
+hand. Returns `Promise<`[`UserDetails`](#userdetails)`>`. **Steam applies
+`max(me.escrowDays, them.escrowDays)`** as the actual hold — compute that yourself if you need a
+single number.
+
+### getEscrow(target)
+
+- `target` — An [`OfferTarget`](#offertarget) (typically `{ tradeUrl }`).
+
+Escrow hold (in **seconds**) via `IEconService/GetTradeHoldDurations`. Returns
+`Promise<`[`EscrowHold`](#escrowhold)`>` shaped `{ me, them, both }` (top-level renamed from Steam's
+`my_escrow` / `their_escrow` / `both_escrow`; inner shape preserved 1:1). Lightweight — just the
+WebAPI, no scrape, no other user data. For everything together (escrow + persona + avatars +
+contexts), use [`getUserDetails`](#getuserdetailstarget) above (or [`offer.getUserDetails()`](#getuserdetails))
+instead.
 
 ### getTradeHistory(\[options])
 
@@ -572,6 +586,24 @@ been accepted).
 Loads the **partner's** inventory, reusing this offer's partner and token. Returns
 `Promise<`[`EconItem`](#econitem)`[]>`.
 
+### getUserDetails()
+
+Persona, contexts, escrow days, avatars, and partner probation for both sides — McKay-parity. Scrapes
+the trade page once. Picks the URL based on the offer's state: `/tradeoffer/<id>/` for offers that
+have already been sent, otherwise `/tradeoffer/new/?partner=…[&token=…]` for an unsent draft. Returns
+`Promise<`[`UserDetails`](#userdetails)`>`. **Steam applies `max(me.escrowDays, them.escrowDays)`** as
+the actual hold — compute that yourself if you need a single number.
+
+Use this when you already have a `TradeOffer` in hand. If you only have a tradeUrl/SteamID, prefer
+the top-level [`bot.trade.getUserDetails(target)`](#getuserdetailstarget) — same scrape, no offer
+construction needed.
+
+Throws when called on an offer where Steam doesn't render trade info:
+
+- An offer **we sent** (`isOurOffer === true` with `this.id` set) — Steam shows our own offers from a
+  different view. Use [`bot.trade.getUserDetails(target)`](#getuserdetailstarget) instead.
+- An offer **received** but no longer `Active` (already accepted, declined, expired, etc.).
+
 ### containsItem(item)
 
 - `item` — `{ appid, contextid, assetid }`.
@@ -590,22 +622,24 @@ Account- and profile-level helpers backed by `steamcommunity.com` and a couple o
 - `contextid` — Optional context id (default `"2"`).
 - `options`
   - `steamId` — Optional. Whose inventory to load (default: yourself).
-  - `tradableOnly` — Optional. Tradable items only.
 
-Loads your own inventory — or any **public** inventory — via the `/inventory/` endpoint. Returns
-`Promise<`[`EconItem`](#econitem)`[]>`, paginated automatically. Throws `PrivateInventoryError` on a
-private inventory (the lazy trade-page scrape also classifies trade-ban / target-cannot-trade / item-
-server-unavailable errors into their typed counterparts). For a trade **partner's** inventory, use
+Loads your own inventory — or any **public** inventory — paginated automatically. Returns
+`Promise<`[`EconItem`](#econitem)`[]>`. Throws `PrivateInventoryError` on a private inventory (the
+lazy trade-page scrape also classifies trade-ban / target-cannot-trade / item-server-unavailable
+errors into their typed counterparts). Filter the returned list client-side if you only want a
+subset (e.g. `items.filter((i) => i.tradable)`).
+
+Routes by target:
+
+- **Self** → the legacy `/profiles/<id>/inventory/json/<appid>/<contextid>` endpoint (cookie path,
+  near-nonexistent rate limits, surfaces trade-protected items). The modern
+  `IEconService/GetInventoryItemsWithDescriptions` is avoided here — Steam silently returns
+  `{response:{}}` on ≥2 calls/sec, making it unfit for repeated use.
+- **Other user** → the public `/inventory/` endpoint (cookie path).
+
+For a trade **partner's** inventory, use
 [`bot.trade.getInventory`](#getinventorytarget-appid-contextid-options) instead — `/partnerinventory/`
 is the only path that reveals trade-protected items.
-
-### checkUser(target)
-
-- `target` — An [`OfferTarget`](#offertarget).
-
-Scrapes the trade page for escrow-hold and probation status (the Web API's `GetTradeHoldDurations`
-returns AccessDenied for a mobile token). Returns a `Promise<`[`UserCheck`](#usercheck)`>`. Throws
-loudly rather than reporting a misleading `0` if the escrow values can't be parsed.
 
 ### getTradeURL()
 
@@ -891,17 +925,45 @@ interface SteamProfile {
 }
 ```
 
-### UserCheck
+### UserDetails
 
-Returned by [`checkUser`](#checkusertarget):
+Returned by [`bot.trade.getUserDetails(target)`](#getuserdetailstarget) and
+[`offer.getUserDetails()`](#getuserdetails) — mirrors steamcommunity's `TradeOffer#getUserDetails`:
 
 ```ts
-interface UserCheck {
-  escrowDays: number;       // max of the two sides
-  myEscrowDays: number;
-  theirEscrowDays: number;
-  probation: boolean;
+interface UserDetails {
+  me: UserSideDetails;
+  them: UserPartnerDetails;
+}
+
+interface UserSideDetails {
+  personaName: string;
   contexts: Record<string, unknown> | null;
+  escrowDays: number;             // your side; Steam holds for max(me, them) days
+  avatarIcon: string | undefined; // .jpg
+  avatarMedium: string | undefined; // _medium.jpg
+  avatarFull: string | undefined;   // _full.jpg
+}
+
+interface UserPartnerDetails extends UserSideDetails {
+  probation: boolean; // partner is on Steam-trade probation (see Steam's warning banner)
+}
+```
+
+### EscrowHold
+
+Returned by [`bot.trade.getEscrow`](#getescrowtarget) — escrow-only, in **seconds**. Top-level keys
+renamed from Steam's `my_escrow`/`their_escrow`/`both_escrow`; inner shape preserved 1:1:
+
+```ts
+interface EscrowHold {
+  me: EscrowSide;
+  them: EscrowSide;
+  both: EscrowSide;
+}
+
+interface EscrowSide {
+  escrow_end_duration_seconds: number;
 }
 ```
 

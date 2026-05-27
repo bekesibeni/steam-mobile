@@ -72,7 +72,7 @@ describe("TradeNamespace.getOffers", () => {
     });
     const trade = makeTrade(api);
 
-    const { sent, received } = await trade.getOffers(EOfferFilter.All);
+    const { sent, received } = await trade.getTradeOffers(EOfferFilter.All);
 
     expect(sent).toHaveLength(1);
     expect(received).toHaveLength(1);
@@ -88,7 +88,7 @@ describe("TradeNamespace.getOffers", () => {
     api.queueResponse({ response: { trade_offers_sent: [rawOffer("3")], next_cursor: 0 } });
     const trade = makeTrade(api);
 
-    const { sent } = await trade.getOffers();
+    const { sent } = await trade.getTradeOffers();
     expect(sent[0]!.glitched).toBe(true);
   });
 
@@ -101,7 +101,7 @@ describe("TradeNamespace.getOffers", () => {
     api.queueResponse({ response: { trade_offers_sent: [declined], next_cursor: 0 } });
     const trade = makeTrade(api);
 
-    const { sent } = await trade.getOffers();
+    const { sent } = await trade.getTradeOffers();
     // Steam omits descriptions for dead offers; deferring would strand the Active->Declined change.
     expect(sent[0]!.glitched).toBe(false);
   });
@@ -112,7 +112,7 @@ describe("TradeNamespace.getOffers", () => {
     api.queueResponse({ response: { trade_offers_received: [broken], next_cursor: 0 } });
     const trade = makeTrade(api);
 
-    await expect(trade.getOffers()).rejects.toThrow(/temporarily unavailable/);
+    await expect(trade.getTradeOffers()).rejects.toThrow(/temporarily unavailable/);
   });
 
   it("drops malformed items but keeps the offer (when the batch isn't wholly malformed)", async () => {
@@ -130,7 +130,7 @@ describe("TradeNamespace.getOffers", () => {
     });
     const trade = makeTrade(api);
 
-    const { sent } = await trade.getOffers();
+    const { sent } = await trade.getTradeOffers();
     const offer5 = sent.find((o) => o.id === "5")!;
     expect(offer5.itemsToGive).toHaveLength(1);
     expect(offer5.itemsToGive[0]!.assetid).toBe("good");
@@ -155,7 +155,7 @@ describe("TradeNamespace.getOffers settlement fields", () => {
       },
     });
 
-    const { received } = await makeTrade(api).getOffers();
+    const { received } = await makeTrade(api).getTradeOffers();
     expect(received[0]!.delaySettlement).toBe(true);
     expect(received[0]!.settlementDate).toEqual(new Date(1_780_210_800 * 1000));
   });
@@ -171,7 +171,7 @@ describe("TradeNamespace.getOffers settlement fields", () => {
       response: { trade_offers_sent: [unsettled], descriptions: [desc("AK-47")], next_cursor: 0 },
     });
 
-    const { sent } = await makeTrade(api).getOffers();
+    const { sent } = await makeTrade(api).getTradeOffers();
     expect(sent[0]!.delaySettlement).toBe(false);
     expect(sent[0]!.settlementDate).toBeUndefined();
   });

@@ -1,5 +1,11 @@
 import SteamID from "steamid";
 import type { ConfirmationManager } from "../community/confirmations.js";
+import { acknowledgeTradeProtection } from "../community/tradeProtection.js";
+import {
+  buildPartnerTradePageUrl,
+  fetchUserDetails,
+  type UserDetails,
+} from "../community/userDetails.js";
 import { URLS } from "../core/constants.js";
 import { EConfirmationMethod, ETradeOfferState } from "../core/enums.js";
 import { ConfirmationError, SteamError, SteamSessionExpiredError } from "../core/errors.js";
@@ -146,7 +152,7 @@ export class TradeOffer {
     await this.deps.session.getAccessToken();
     const sessionid = await this.deps.http.getSessionId();
     // Acknowledge the 2025 trade-protection notice so send isn't blocked; tolerate ack failures but not an expired session.
-    await this.deps.confirmations.acknowledgeTradeProtection().catch((err) => {
+    await acknowledgeTradeProtection(this.deps.http).catch((err) => {
       if (err instanceof SteamSessionExpiredError) throw err;
     });
 
@@ -341,6 +347,30 @@ export class TradeOffer {
       appid,
       contextid,
       tradableOnly !== undefined ? { tradableOnly } : {},
+    );
+  }
+
+  // Persona, contexts, avatars, escrow, partner probation — McKay-parity getUserDetails. Allowed for:
+  //   - offers we created and haven't sent yet (need friendship or the token)
+  //   - offers they created and sent to us, while still Active
+  async getUserDetails(): Promise<UserDetails> {
+    if (this.id && this.isOurOffer) {
+      throw new SteamError("Cannot get user details for an offer that we sent");
+    }
+    if (this.id && this.state !== ETradeOfferState.Active) {
+      throw new SteamError("Cannot get user details for an offer that is sent and not Active");
+    }
+    await this.deps.session.getAccessToken();
+    const url = this.id
+      ? `${URLS.community}/tradeoffer/${this.id}/`
+      : buildPartnerTradePageUrl(this.partner.accountid, this.token);
+    const referer = `${URLS.community}/profiles/${this.partner.getSteamID64()}`;
+    return fetchUserDetails(
+      this.deps.http,
+      url,
+      referer,
+      this.deps.session.steamID.accountid,
+      this.partner.accountid,
     );
   }
 

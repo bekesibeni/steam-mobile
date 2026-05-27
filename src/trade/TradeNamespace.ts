@@ -1,6 +1,11 @@
 import { EventEmitter } from "node:events";
 import SteamID from "steamid";
 import type { ConfirmationManager } from "../community/confirmations.js";
+import {
+  buildPartnerTradePageUrl,
+  fetchUserDetails,
+  type UserDetails,
+} from "../community/userDetails.js";
 import { DEFAULT_CONTEXTID, LANG, URLS } from "../core/constants.js";
 import { EOfferFilter } from "../core/enums.js";
 import { SteamError } from "../core/errors.js";
@@ -34,6 +39,22 @@ import type { PollChange, PollData, PollOptions, TradeEvents } from "./pollTypes
 import { TradeOffer, type TradeOfferDeps } from "./TradeOffer.js";
 
 const FUTURE_CUTOFF_MS = 31_536_000_000; // 1 year ahead = "no historical offers"
+
+export interface EscrowSide {
+  escrow_end_duration_seconds: number;
+}
+
+export interface EscrowHold {
+  me: EscrowSide;
+  them: EscrowSide;
+  both: EscrowSide;
+}
+
+interface RawEscrowResponse {
+  my_escrow?: EscrowSide;
+  their_escrow?: EscrowSide;
+  both_escrow?: EscrowSide;
+}
 
 export class TradeNamespace extends EventEmitter<TradeEvents> {
   private poller: Poller | undefined;
@@ -88,7 +109,7 @@ export class TradeNamespace extends EventEmitter<TradeEvents> {
   }
 
   // Cursor-paginates all pages; rejects the wholly-malformed "data temporarily unavailable" glitch.
-  async getOffers(
+  async getTradeOffers(
     filter: EOfferFilter = EOfferFilter.ActiveOnly,
     historicalCutoff?: Date,
   ): Promise<{ sent: TradeOffer[]; received: TradeOffer[] }> {
@@ -144,14 +165,47 @@ export class TradeNamespace extends EventEmitter<TradeEvents> {
     return { sent: sentRaw.map(build), received: receivedRaw.map(build) };
   }
 
-  async getTradeOffers(filter: EOfferFilter = EOfferFilter.ActiveOnly): Promise<TradeOffer[]> {
-    const { sent, received } = await this.getOffers(filter);
-    return [...sent, ...received];
-  }
-
   // Settlement details for a completed/escrowed trade (tradeID, not offer id).
   getTradeStatus(opts: { tradeId: string }): Promise<ExchangeDetails> {
     return fetchTradeStatus(this.api, opts.tradeId);
+  }
+
+  // Persona, contexts, escrow days, avatars, and partner probation for both sides — same trade-page
+  // scrape as offer.getUserDetails(), but addressed by target instead of by an existing offer.
+  async getUserDetails(target: OfferTarget): Promise<UserDetails> {
+    await this.session.getAccessToken();
+    const { steamId, token } = resolveTarget(target);
+    const partnerAccountId = new SteamID(steamId).accountid;
+    return fetchUserDetails(
+      this.http,
+      buildPartnerTradePageUrl(partnerAccountId, token),
+      `${URLS.community}/profiles/${steamId}`,
+      this.session.steamID.accountid,
+      partnerAccountId,
+    );
+  }
+
+  // Escrow hold (seconds) via IEconService/GetTradeHoldDurations — escrow-only, lightweight. For
+  // everything together (escrow + persona + avatars + contexts), use offer.getUserDetails() instead.
+  async getEscrow(target: OfferTarget): Promise<EscrowHold> {
+    const { steamId, token } = resolveTarget(target);
+    const body = await this.api.call<{ response?: RawEscrowResponse }>({
+      httpMethod: "GET",
+      iface: "IEconService",
+      method: "GetTradeHoldDurations",
+      retryAfterMs: RETRY_AFTER.GetTradeHoldDurations,
+      input: {
+        steamid_target: steamId,
+        ...(token ? { trade_offer_access_token: token } : {}),
+      },
+    });
+    const r = body.response ?? {};
+    const zero: EscrowSide = { escrow_end_duration_seconds: 0 };
+    return {
+      me: r.my_escrow ?? zero,
+      them: r.their_escrow ?? zero,
+      both: r.both_escrow ?? zero,
+    };
   }
 
   // Past trades (newest first); cursor-paginate with startAfterTime/startAfterTradeId while `more`.
@@ -179,7 +233,7 @@ export class TradeNamespace extends EventEmitter<TradeEvents> {
     items: { appid: number; contextid: string; assetid: string }[],
     includeInactive = false,
   ): Promise<TradeOffer[]> {
-    const { sent, received } = await this.getOffers(
+    const { sent, received } = await this.getTradeOffers(
       includeInactive ? EOfferFilter.All : EOfferFilter.ActiveOnly,
     );
     return [...sent, ...received].filter((offer) =>

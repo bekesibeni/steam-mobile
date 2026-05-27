@@ -43,7 +43,8 @@
     "smoke": "tsx debug/smoke.ts",
     "watch": "tsx debug/watch.ts",
     "trade": "tsx debug/trade.ts",
-    "partner-inventory": "tsx debug/partnerInventory.ts"
+    "partner-inventory": "tsx debug/partnerInventory.ts",
+    "own-inventory": "tsx debug/ownInventory.ts"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.12.0",

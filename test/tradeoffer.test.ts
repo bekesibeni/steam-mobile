@@ -33,6 +33,10 @@ class FakeHttp {
   }
 
   async post(url: string, opts: { form?: Record<string, unknown>; referer?: string }) {
+    // The 2025 trade-protection ack is a pass-through preflight; don't consume the queued response.
+    if (url.endsWith("/trade/new/acknowledge")) {
+      return { statusCode: 200, headers: {}, body: {} };
+    }
     this.calls.push({ method: "POST", url, form: opts.form, referer: opts.referer });
     const res = this.queue.shift() ?? {};
     return { statusCode: res.statusCode ?? 200, headers: {}, body: res.body ?? {} };

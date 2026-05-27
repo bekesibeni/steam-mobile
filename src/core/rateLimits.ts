@@ -8,6 +8,7 @@ export const RATE_LIMITS = {
   partnerInventory: { type: "window", windowMs: 120_000, max: 30 },
   inventory: null,
   GetTradeHistory: { type: "bucket", capacity: 25, refillMs: 15_000 },
+  GetTradeHoldDurations: { type: "bucket", capacity: 3750, refillMs: 5 },
   GetTradeOffer: { type: "bucket", capacity: 3750, refillMs: 5 },
   GetTradeOffers: { type: "bucket", capacity: 85, refillMs: 125 },
   GetTradeOffersSummary: { type: "bucket", capacity: 85, refillMs: 125 },

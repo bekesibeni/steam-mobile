@@ -27,7 +27,9 @@ export class WebApiClient {
     const { httpMethod, iface, method, version = 1, input = {}, retryAfterMs = null } = params;
     const accessToken = await this.getAccessToken();
     const url = `${URLS.api}/${iface}/${method}/v${version}/`;
-    const payload = { ...input, access_token: accessToken };
+    // origin=SteamMobile keeps us identified as the mobile app on every WebAPI call (matches
+    // protoTransport's behavior on IAuthenticationService reads).
+    const payload = { origin: "SteamMobile", ...input, access_token: accessToken };
 
     if (process.env.DEBUG_HTTP === "1") {
       const qs = new URLSearchParams(

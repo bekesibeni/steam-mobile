@@ -12,16 +12,19 @@ async function main(): Promise<void> {
   const appid = Number(process.env.APPID ?? 730);
   const contextid = process.env.CONTEXTID ?? "2";
   const tradableOnly = process.env.TRADABLE_ONLY === "1";
-  const limit = Number(process.env.LIMIT ?? 20);
 
-  console.log(`\n=== trade.getInventory ${appid}/${contextid}${tradableOnly ? " tradableOnly" : ""} ===\n`);
+  console.log(
+    `\n=== trade.getInventory ${appid}/${contextid}${tradableOnly ? " tradableOnly" : ""} ===\n`,
+  );
   const { bot } = await login();
 
   try {
-    const items = await bot.trade.getInventory({ tradeUrl: partnerTradeUrl }, appid, contextid, { tradableOnly });
+    const items = await bot.trade.getInventory({ tradeUrl: partnerTradeUrl }, appid, contextid, {
+      tradableOnly,
+    });
     console.log(items);
   } catch (e) {
-    console.log(e)
+    console.log(e);
     if (e instanceof PrivateInventoryError) {
       console.log(`partner inventory is private: ${e.message}`);
     } else {

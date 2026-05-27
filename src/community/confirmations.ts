@@ -6,6 +6,7 @@ import type { MobileProfile } from "../core/mobileProfile.js";
 import * as SteamTotp from "../crypto/steamTotp.js";
 import { httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
+import { queryServerTimeOffset } from "../http/queryTime.js";
 
 export interface Confirmation {
   id: string;
@@ -182,35 +183,14 @@ export class ConfirmationManager {
     return time;
   }
 
-  // 2025 trade-protection notice; Steam blocks send() until it's acknowledged once.
-  async acknowledgeTradeProtection(): Promise<void> {
-    const sessionid = await this.http.getSessionId();
-    const res = await this.http.post<unknown>(`${URLS.community}/trade/new/acknowledge`, {
-      form: { sessionid, message: 1 },
-    });
-    if (res.statusCode !== 200) throw httpError(res);
-  }
-
   private async getTimeOffset(): Promise<number> {
     if (this.timeOffset !== undefined && Date.now() - this.timeOffsetAt < TIME_OFFSET_TTL_MS) {
       return this.timeOffset;
     }
-    const offset = await this.queryServerTimeOffset();
+    const offset = await queryServerTimeOffset(this.http);
     this.timeOffset = offset;
     this.timeOffsetAt = Date.now();
     return offset;
-  }
-
-  // Server-time offset via QueryTime, through HttpClient so it honors the proxy + mobile headers.
-  private async queryServerTimeOffset(): Promise<number> {
-    const res = await this.http.post<{ response?: { server_time?: string | number } }>(
-      `${URLS.api}/ITwoFactorService/QueryTime/v1/`,
-      { responseType: "json" },
-    );
-    if (res.statusCode !== 200) throw httpError(res);
-    const serverTime = Number(res.body?.response?.server_time);
-    if (!serverTime) throw new ConfirmationError("Failed to query Steam server time");
-    return serverTime - SteamTotp.time();
   }
 
   // Common mobileconf query params; the `k` HMAC authorizes the request.

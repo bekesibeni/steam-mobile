@@ -101,8 +101,11 @@ scraped text through `parseStrError`.
 - **Partner inventory must use `/partnerinventory/`** (`bot.trade.getInventory`), not the new
   `/inventory/` endpoint — the latter hides trade-protected items. `bot.community.getInventory` is for
   your own / public inventories.
-- **`cancel`/`decline` are community POSTs**, not Web API calls (the WebAPI rejects the mobile token);
-  escrow/probation comes from a trade-page scrape (`GetTradeHoldDurations` returns AccessDenied).
+- **`cancel`/`decline` are community POSTs**, not Web API calls (the WebAPI rejects the mobile token).
+  Escrow has two paths: `bot.trade.getEscrow(target)` for just the hold seconds (via
+  `IEconService/GetTradeHoldDurations` — works on the mobile token), and
+  `bot.trade.getUserDetails(target)` (or `offer.getUserDetails()`) for the full trade-page scrape
+  (persona + contexts + avatars + escrow days + partner probation).
 - **Rate limits are classified, not retried.** Community = HTTP 429, WebAPI = eresult 84;
   `RateLimitError` always carries a concrete `unlockAt`/`retryAfterMs` (conservative default when the
   endpoint's window is unknown). The poll loop's adaptive backoff is the one exception. Cooldown policy
@@ -115,10 +118,10 @@ scraped text through `parseStrError`.
 ## Protobufs
 
 `protobufs/steammessages_auth.proto` is the vendored + trimmed official Steam schema (unused
-messages/services deleted, like steam-session does). `pnpm proto` regenerates
-`src/protobufs/steammessages_auth_pb.ts` (committed, and **excluded from biome** via `biome.json`). Edit
-the `.proto` and regenerate — never hand-edit the generated file. Uses Protobuf-ES v2
-(`create`/`toBinary`/`fromBinary`).
+messages/services deleted, like steam-session does). `protobufs/csgo_econ_preview.proto` covers the
+CS2 inspect blob decoder. `pnpm proto` regenerates the matching `src/protobufs/*_pb.ts` files
+(committed, and **excluded from biome** via `biome.json`). Edit the `.proto` and regenerate — never
+hand-edit the generated file. Uses Protobuf-ES v2 (`create`/`toBinary`/`fromBinary`).
 
 ## Live testing (`debug/`)
 
