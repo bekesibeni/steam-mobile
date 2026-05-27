@@ -22,6 +22,7 @@ const INVENTORY_PAGE_SIZE = 2000;
 
 export interface GetInventoryOptions {
   steamId?: string;
+  tradableOnly?: boolean;
 }
 
 export interface SteamProfile {
@@ -174,26 +175,29 @@ export class CommunityNamespace {
     await this.session.getAccessToken();
     const ownId = this.session.steamID.getSteamID64();
     const steamId = options.steamId ?? ownId;
+    const tradableOnly = options.tradableOnly ?? false;
     return steamId === ownId
-      ? this.getOwnInventoryItems(steamId, appid, contextid)
-      : this.getTheirInventory(steamId, appid, contextid);
+      ? this.getOwnInventoryItems(steamId, appid, contextid, tradableOnly)
+      : this.getTheirInventory(steamId, appid, contextid, tradableOnly);
   }
 
   // Own inventory uses the legacy /inventory/json/ endpoint: near-nonexistent rate limits, surfaces
   // trade-protected items, and the rg* response shape matches /partnerinventory/. The modern
   // IEconService/GetInventoryItemsWithDescriptions endpoint trips Steam's silent throttle (returns
   // {response:{}}) on ≥2 calls/sec, which makes it unfit for repeated use.
+  // trading=1 is Steam's server-side tradable filter; legacy endpoint has no other knob for it.
   private getOwnInventoryItems(
     steamId: string,
     appid: number,
     contextid: string,
+    tradableOnly: boolean,
   ): Promise<EconItem[]> {
     const url = `${URLS.community}/profiles/${steamId}/inventory/json/${appid}/${contextid}`;
     return paginate<EconItem, number>(async (start): Promise<Page<EconItem, number>> => {
       const res = await this.http.get<RawPartnerInventoryResponse>(url, {
         responseType: "json",
         searchParams: {
-          trading: 0,
+          trading: tradableOnly ? 1 : 0,
           preserve_bbcode: 1,
           l: LANG.l,
           ...(start !== undefined ? { start } : {}),
@@ -210,7 +214,7 @@ export class CommunityNamespace {
         body.more && typeof body.more_start === "number" && body.more_start > (start ?? 0)
           ? body.more_start
           : undefined;
-      return { items: parsePartnerInventory(body, contextid), next };
+      return { items: parsePartnerInventory(body, contextid, tradableOnly), next };
     });
   }
 
@@ -219,6 +223,7 @@ export class CommunityNamespace {
     steamId: string,
     appid: number,
     contextid: string,
+    tradableOnly: boolean,
   ): Promise<EconItem[]> {
     const url = `${URLS.community}/inventory/${steamId}/${appid}/${contextid}`;
     return paginate<EconItem, string>(async (startAssetId): Promise<Page<EconItem, string>> => {
@@ -258,7 +263,7 @@ export class CommunityNamespace {
       if (!body.assets) return { items: [], next: undefined };
 
       return {
-        items: parseInventory(body, contextid),
+        items: parseInventory(body, contextid, tradableOnly),
         next: body.more_items && body.last_assetid ? body.last_assetid : undefined,
       };
     });

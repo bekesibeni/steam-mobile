@@ -622,12 +622,14 @@ Account- and profile-level helpers backed by `steamcommunity.com` and a couple o
 - `contextid` — Optional context id (default `"2"`).
 - `options`
   - `steamId` — Optional. Whose inventory to load (default: yourself).
+  - `tradableOnly` — Optional. If `true`, only tradable items are returned (default `false`). For your
+    own inventory this is applied server-side via the legacy endpoint's `trading=1` flag; for other
+    users it's applied in the parser.
 
 Loads your own inventory — or any **public** inventory — paginated automatically. Returns
 `Promise<`[`EconItem`](#econitem)`[]>`. Throws `PrivateInventoryError` on a private inventory (the
 lazy trade-page scrape also classifies trade-ban / target-cannot-trade / item-server-unavailable
-errors into their typed counterparts). Filter the returned list client-side if you only want a
-subset (e.g. `items.filter((i) => i.tradable)`).
+errors into their typed counterparts).
 
 Routes by target:
 
