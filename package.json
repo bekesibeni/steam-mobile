@@ -32,7 +32,6 @@
   },
   "scripts": {
     "build": "tsdown",
-    "prepare": "tsdown",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src test",
     "lint:fix": "biome check --write src test",
