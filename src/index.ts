@@ -59,6 +59,14 @@ export { HttpClient } from "./http/HttpClient.js";
 export type { ApiCallParams } from "./http/webApi.js";
 export { WebApiClient } from "./http/webApi.js";
 export {
+  type Badge,
+  type PlayerBadges,
+  type PlayerBans,
+  type PlayerSummary,
+  SteamWebApi,
+  type SteamWebApiOptions,
+} from "./keyApi/SteamWebApi.js";
+export {
   type AssetProperty,
   type EconItem,
   parseInventory,

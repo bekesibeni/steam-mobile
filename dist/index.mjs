@@ -1644,6 +1644,72 @@ var WebApiClient = class {
 function headerValue(v) {
 	return Array.isArray(v) ? v[0] : v;
 }
+//#endregion
+//#region src/keyApi/SteamWebApi.ts
+const GET_PLAYER_BANS_BATCH = 100;
+const GET_PLAYER_SUMMARIES_BATCH = 100;
+var SteamWebApi = class {
+	http;
+	apiKey;
+	constructor(options) {
+		this.apiKey = options.apiKey;
+		this.http = options.http ?? new HttpClient({
+			...options.proxy ? { proxy: options.proxy } : {},
+			profile: resolveMobileProfile()
+		});
+	}
+	async getPlayerBans(steamIds) {
+		if (steamIds.length === 0) return [];
+		const out = [];
+		for (let i = 0; i < steamIds.length; i += GET_PLAYER_BANS_BATCH) {
+			const chunk = steamIds.slice(i, i + GET_PLAYER_BANS_BATCH);
+			const res = await this.http.get(`${URLS.api}/ISteamUser/GetPlayerBans/v1/`, {
+				responseType: "json",
+				searchParams: {
+					key: this.apiKey,
+					steamids: chunk.join(",")
+				}
+			});
+			if (res.statusCode !== 200) throw httpError(res);
+			const players = res.body?.players;
+			if (!Array.isArray(players)) throw new SteamError("Invalid GetPlayerBans response", { body: res.body });
+			out.push(...players);
+		}
+		return out;
+	}
+	async getPlayerSummaries(steamIds) {
+		if (steamIds.length === 0) return [];
+		const out = [];
+		for (let i = 0; i < steamIds.length; i += GET_PLAYER_SUMMARIES_BATCH) {
+			const chunk = steamIds.slice(i, i + GET_PLAYER_SUMMARIES_BATCH);
+			const res = await this.http.get(`${URLS.api}/ISteamUser/GetPlayerSummaries/v2/`, {
+				responseType: "json",
+				searchParams: {
+					key: this.apiKey,
+					steamids: chunk.join(",")
+				}
+			});
+			if (res.statusCode !== 200) throw httpError(res);
+			const players = res.body?.response?.players;
+			if (!Array.isArray(players)) throw new SteamError("Invalid GetPlayerSummaries response", { body: res.body });
+			out.push(...players);
+		}
+		return out;
+	}
+	async getBadges(steamId) {
+		const res = await this.http.get(`${URLS.api}/IPlayerService/GetBadges/v1/`, {
+			responseType: "json",
+			searchParams: {
+				key: this.apiKey,
+				steamid: steamId
+			}
+		});
+		if (res.statusCode !== 200) throw httpError(res);
+		const response = res.body?.response;
+		if (!response || !Array.isArray(response.badges)) throw new SteamError("Invalid GetBadges response", { body: res.body });
+		return response;
+	}
+};
 /**
 * Describes the message CEconItemPreviewDataBlock.
 * Use `create(CEconItemPreviewDataBlockSchema)` to create a new message.
@@ -2759,6 +2825,6 @@ var SteamMobile = class extends EventEmitter {
 	}
 };
 //#endregion
-export { ANDROID_PROFILE, AccessTokenError, AuthClient, CommunityNamespace, ConfirmationError, ConfirmationManager, CredentialSession, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, EscrowError, FamilyViewError, HttpClient, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, LANG, LoginError, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, RateLimitError, SessionManager, SteamError, SteamMobile, SteamSessionExpiredError, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, TradeNamespace, TradeOffer, URLS, WebApiClient, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry };
+export { ANDROID_PROFILE, AccessTokenError, AuthClient, CommunityNamespace, ConfirmationError, ConfirmationManager, CredentialSession, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, EscrowError, FamilyViewError, HttpClient, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, LANG, LoginError, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, RateLimitError, SessionManager, SteamError, SteamMobile, SteamSessionExpiredError, SteamWebApi, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, TradeNamespace, TradeOffer, URLS, WebApiClient, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry };
 
 //# sourceMappingURL=index.mjs.map
