@@ -3,6 +3,7 @@ import { SteamError } from "../core/errors.js";
 import { type Page, paginate } from "../core/paginate.js";
 import { parseStrError } from "../core/parseStrError.js";
 import { RETRY_AFTER } from "../core/rateLimits.js";
+import type { WebTradeEligibility } from "../core/types.js";
 import { checkCommunityError, httpError } from "../http/checkers.js";
 import type { HttpClient } from "../http/HttpClient.js";
 import { inventoryFailureError } from "../http/tradePageError.js";
@@ -111,6 +112,25 @@ export class CommunityNamespace {
       vacBanned: xmlValue(xml, "vacBanned") === "1",
       privacyState: xmlValue(xml, "privacyState") ?? "",
     };
+  }
+
+  // Run Steam's web-trade eligibility check. The endpoint 302s back (we don't follow), priming the
+  // session and leaving a `webTradeEligibility` cookie that carries the verdict — whether trades are
+  // allowed plus the active Steam Guard / new-device holds gating them. We decode and return it 1:1.
+  async getWebTradeEligibility(): Promise<WebTradeEligibility> {
+    await this.session.getAccessToken();
+    const res = await this.http.get<string>(`${URLS.community}/market/eligibilitycheck/`, {
+      responseType: "text",
+      headers: { Referer: `${URLS.community}/` },
+    });
+    if (res.statusCode >= 400) throw httpError(res);
+    const raw = await this.http.getCookie("webTradeEligibility");
+    if (!raw) throw new SteamError("Steam did not return a webTradeEligibility cookie");
+    try {
+      return JSON.parse(decodeURIComponent(raw)) as WebTradeEligibility;
+    } catch {
+      throw new SteamError("Failed to parse the webTradeEligibility cookie");
+    }
   }
 
   // Steam level via IPlayerService (accepts the access token — no API key needed).

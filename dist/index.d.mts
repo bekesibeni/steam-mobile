@@ -61,6 +61,7 @@ declare class HttpClient {
   get<T = string>(url: string, opts?: RequestOptions): Promise<HttpResponse<T>>;
   post<T = string>(url: string, opts?: RequestOptions): Promise<HttpResponse<T>>;
   setCookie(rawCookie: string): Promise<void>;
+  getCookie(key: string, url?: string): Promise<string | undefined>;
   getSessionId(): Promise<string>;
 }
 //#endregion
@@ -688,26 +689,6 @@ interface LoginResult {
 }
 declare function loginWithCredentials(opts: LoginWithCredentialsOptions): Promise<LoginResult>;
 //#endregion
-//#region src/http/webApi.d.ts
-type Scalar = string | number | boolean;
-interface ApiCallParams {
-  httpMethod: "GET" | "POST";
-  iface: string;
-  method: string;
-  version?: number;
-  input?: Record<string, Scalar | undefined>;
-  retryAfterMs?: number | null;
-}
-type ApiBody = {
-  response?: Record<string, unknown>;
-} & Record<string, unknown>;
-declare class WebApiClient {
-  private readonly http;
-  private readonly getAccessToken;
-  constructor(http: HttpClient, getAccessToken: () => Promise<string>);
-  call<T = ApiBody>(params: ApiCallParams): Promise<T>;
-}
-//#endregion
 //#region src/models/EconItem.d.ts
 interface SteamTag {
   category: string;
@@ -829,6 +810,119 @@ interface EconItem {
 declare function parseInventory(body: RawInventoryResponse, contextid: string, tradableOnly?: boolean): EconItem[];
 declare function parsePartnerInventory(body: RawPartnerInventoryResponse, contextid: string, tradableOnly?: boolean): EconItem[];
 //#endregion
+//#region src/core/types.d.ts
+type OfferTarget = {
+  tradeUrl: string;
+  steamId?: never;
+  token?: never;
+} | {
+  steamId: string;
+  token?: string;
+  tradeUrl?: never;
+};
+interface TradeItem {
+  appid: number;
+  contextid: string;
+  assetid: string;
+  amount?: number;
+}
+interface RawAsset {
+  appid: number;
+  contextid: string;
+  assetid: string;
+  classid: string;
+  instanceid: string;
+  amount: string;
+  missing?: boolean;
+  est_usd?: string;
+  [key: string]: unknown;
+}
+interface RawCEconTradeOffer {
+  tradeofferid: string;
+  accountid_other: number;
+  message?: string;
+  expiration_time: number;
+  trade_offer_state: number;
+  items_to_give?: RawAsset[];
+  items_to_receive?: RawAsset[];
+  is_our_offer: boolean;
+  time_created: number;
+  time_updated: number;
+  tradeid?: string;
+  from_real_time_trade: boolean;
+  escrow_end_date: number;
+  confirmation_method: number;
+  eresult?: number;
+  delay_settlement?: boolean;
+  settlement_date?: number;
+  [key: string]: unknown;
+}
+interface RawGetTradeOffersResponse {
+  trade_offers_sent?: RawCEconTradeOffer[];
+  trade_offers_received?: RawCEconTradeOffer[];
+  descriptions?: RawDescription[];
+  next_cursor?: number;
+}
+interface RawExchangeAsset {
+  appid: number;
+  contextid: string;
+  assetid: string;
+  classid: string;
+  instanceid: string;
+  amount: string;
+  new_assetid?: string;
+  new_contextid?: string;
+  rollback_new_assetid?: string;
+  rollback_new_contextid?: string;
+  currencyid?: string;
+  [key: string]: unknown;
+}
+interface RawTradeStatus {
+  tradeid: string;
+  steamid_other?: string;
+  time_init: number;
+  time_settlement?: number;
+  status: number;
+  assets_received?: RawExchangeAsset[];
+  assets_given?: RawExchangeAsset[];
+  time_mod?: number;
+  [key: string]: unknown;
+}
+interface RawGetTradeStatusResponse {
+  trades?: RawTradeStatus[];
+  descriptions?: RawDescription[];
+}
+interface WebTradeEligibility {
+  allowed: number;
+  reason: number;
+  allowed_at_time: number;
+  steamguard_required_days: number;
+  new_device_cooldown_days: number;
+  expiration: number;
+  time_checked: number;
+  [key: string]: unknown;
+}
+//#endregion
+//#region src/http/webApi.d.ts
+type Scalar = string | number | boolean;
+interface ApiCallParams {
+  httpMethod: "GET" | "POST";
+  iface: string;
+  method: string;
+  version?: number;
+  input?: Record<string, Scalar | undefined>;
+  retryAfterMs?: number | null;
+}
+type ApiBody = {
+  response?: Record<string, unknown>;
+} & Record<string, unknown>;
+declare class WebApiClient {
+  private readonly http;
+  private readonly getAccessToken;
+  constructor(http: HttpClient, getAccessToken: () => Promise<string>);
+  call<T = ApiBody>(params: ApiCallParams): Promise<T>;
+}
+//#endregion
 //#region src/session/SessionManager.d.ts
 interface SessionManagerEvents {
   refreshToken: [token: string];
@@ -927,6 +1021,7 @@ declare class CommunityNamespace {
     token: string;
   }>;
   getProfile(steamId?: string): Promise<SteamProfile>;
+  getWebTradeEligibility(): Promise<WebTradeEligibility>;
   getSteamLevel(steamId?: string): Promise<number>;
   ensureApiKey(domain?: string): Promise<string | null>;
   private requestApiKey;
@@ -1106,89 +1201,6 @@ declare const RATE_LIMITS: {
 };
 type RateLimitedEndpoint = keyof typeof RATE_LIMITS;
 declare const RETRY_AFTER: Record<RateLimitedEndpoint, number | null>;
-//#endregion
-//#region src/core/types.d.ts
-type OfferTarget = {
-  tradeUrl: string;
-  steamId?: never;
-  token?: never;
-} | {
-  steamId: string;
-  token?: string;
-  tradeUrl?: never;
-};
-interface TradeItem {
-  appid: number;
-  contextid: string;
-  assetid: string;
-  amount?: number;
-}
-interface RawAsset {
-  appid: number;
-  contextid: string;
-  assetid: string;
-  classid: string;
-  instanceid: string;
-  amount: string;
-  missing?: boolean;
-  est_usd?: string;
-  [key: string]: unknown;
-}
-interface RawCEconTradeOffer {
-  tradeofferid: string;
-  accountid_other: number;
-  message?: string;
-  expiration_time: number;
-  trade_offer_state: number;
-  items_to_give?: RawAsset[];
-  items_to_receive?: RawAsset[];
-  is_our_offer: boolean;
-  time_created: number;
-  time_updated: number;
-  tradeid?: string;
-  from_real_time_trade: boolean;
-  escrow_end_date: number;
-  confirmation_method: number;
-  eresult?: number;
-  delay_settlement?: boolean;
-  settlement_date?: number;
-  [key: string]: unknown;
-}
-interface RawGetTradeOffersResponse {
-  trade_offers_sent?: RawCEconTradeOffer[];
-  trade_offers_received?: RawCEconTradeOffer[];
-  descriptions?: RawDescription[];
-  next_cursor?: number;
-}
-interface RawExchangeAsset {
-  appid: number;
-  contextid: string;
-  assetid: string;
-  classid: string;
-  instanceid: string;
-  amount: string;
-  new_assetid?: string;
-  new_contextid?: string;
-  rollback_new_assetid?: string;
-  rollback_new_contextid?: string;
-  currencyid?: string;
-  [key: string]: unknown;
-}
-interface RawTradeStatus {
-  tradeid: string;
-  steamid_other?: string;
-  time_init: number;
-  time_settlement?: number;
-  status: number;
-  assets_received?: RawExchangeAsset[];
-  assets_given?: RawExchangeAsset[];
-  time_mod?: number;
-  [key: string]: unknown;
-}
-interface RawGetTradeStatusResponse {
-  trades?: RawTradeStatus[];
-  descriptions?: RawDescription[];
-}
 //#endregion
 //#region src/core/target.d.ts
 interface ResolvedTarget {
@@ -1583,5 +1595,5 @@ declare class Poller {
   private stamp;
 }
 //#endregion
-export { ANDROID_PROFILE, type AcceptResult, AccessTokenError, type ApiCallParams, type AssetProperty, AuthClient, type Badge, CommunityNamespace, type Confirmation, ConfirmationError, ConfirmationManager, CredentialSession, type CredentialSessionEvents, type CredentialStartOptions, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, type EconItem, EscrowError, type EscrowHold, type EscrowSide, type ExchangeDetails, type ExchangeItem, FamilyViewError, type GetInventoryOptions, HttpClient, type HttpResponse, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, type JwtPayload, LANG, LoginError, type LoginResult, type LoginWithCredentialsOptions, type MobilePlatform, type MobileProfile, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, OfferTarget, type PlayerBadges, type PlayerBans, type PlayerSummary, type PollChange, type PollData, type PollDataStore, type PollOptions, type PollSource, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, type RateLimit, RateLimitError, type RateLimitedEndpoint, RawAsset, type RawAssetPropertyEntry, RawCEconTradeOffer, type RawDescription, RawExchangeAsset, RawGetTradeOffersResponse, RawGetTradeStatusResponse, type RawInventoryAsset, type RawInventoryResponse, type RawPartnerInventoryResponse, RawTradeStatus, type ReauthenticateOptions, type RequestOptions, type ResolvedTarget, type SendResult, SessionManager, type SessionManagerEvents, type SteamAction, type SteamDescriptionLine, SteamError, SteamMobile, type SteamMobileEvents, type SteamMobileOptions, type SteamProfile, SteamSessionExpiredError, type SteamTag, SteamWebApi, type SteamWebApiOptions, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, type TradeEvents, type TradeHistory, type TradeHistoryEntry, type TradeHistoryOptions, TradeItem, TradeNamespace, TradeOffer, type TradeOfferDeps, type TradeOfferUpdate, type TradeOffersSummary, URLS, type UserDetails, type UserPartnerDetails, type UserSideDetails, WebApiClient, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry };
+export { ANDROID_PROFILE, type AcceptResult, AccessTokenError, type ApiCallParams, type AssetProperty, AuthClient, type Badge, CommunityNamespace, type Confirmation, ConfirmationError, ConfirmationManager, CredentialSession, type CredentialSessionEvents, type CredentialStartOptions, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, type EconItem, EscrowError, type EscrowHold, type EscrowSide, type ExchangeDetails, type ExchangeItem, FamilyViewError, type GetInventoryOptions, HttpClient, type HttpResponse, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, type JwtPayload, LANG, LoginError, type LoginResult, type LoginWithCredentialsOptions, type MobilePlatform, type MobileProfile, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, OfferTarget, type PlayerBadges, type PlayerBans, type PlayerSummary, type PollChange, type PollData, type PollDataStore, type PollOptions, type PollSource, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, type RateLimit, RateLimitError, type RateLimitedEndpoint, RawAsset, type RawAssetPropertyEntry, RawCEconTradeOffer, type RawDescription, RawExchangeAsset, RawGetTradeOffersResponse, RawGetTradeStatusResponse, type RawInventoryAsset, type RawInventoryResponse, type RawPartnerInventoryResponse, RawTradeStatus, type ReauthenticateOptions, type RequestOptions, type ResolvedTarget, type SendResult, SessionManager, type SessionManagerEvents, type SteamAction, type SteamDescriptionLine, SteamError, SteamMobile, type SteamMobileEvents, type SteamMobileOptions, type SteamProfile, SteamSessionExpiredError, type SteamTag, SteamWebApi, type SteamWebApiOptions, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, type TradeEvents, type TradeHistory, type TradeHistoryEntry, type TradeHistoryOptions, TradeItem, TradeNamespace, TradeOffer, type TradeOfferDeps, type TradeOfferUpdate, type TradeOffersSummary, URLS, type UserDetails, type UserPartnerDetails, type UserSideDetails, WebApiClient, WebTradeEligibility, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry };
 //# sourceMappingURL=index.d.mts.map

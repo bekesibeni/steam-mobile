@@ -18,17 +18,20 @@ async function main(): Promise<void> {
   );
   const { bot } = await login();
 
-  try {
-    const items = await bot.trade.getInventory({ tradeUrl: partnerTradeUrl }, appid, contextid, {
-      tradableOnly,
-    });
-    console.log(items);
-  } catch (e) {
-    console.log(e);
-    if (e instanceof PrivateInventoryError) {
-      console.log(`partner inventory is private: ${e.message}`);
-    } else {
-      throw e;
+  for (let i = 1; i <= 31; i++) {
+    console.log(`\n--- attempt ${i}/31 ---`);
+    try {
+      const items = await bot.trade.getInventory({ tradeUrl: partnerTradeUrl }, appid, contextid, {
+        tradableOnly,
+      });
+      console.log(items.length);
+    } catch (e) {
+      console.log(e);
+      if (e instanceof PrivateInventoryError) {
+        console.log(`partner inventory is private: ${e.message}`);
+      } else {
+        throw e;
+      }
     }
   }
   await bot.shutdown();

@@ -84,3 +84,17 @@ export interface RawGetTradeStatusResponse {
   trades?: RawTradeStatus[];
   descriptions?: RawDescription[];
 }
+
+// Verdict from /market/eligibilitycheck/, decoded from the `webTradeEligibility` cookie it sets.
+// allowed: 1 = can trade now, 0 = blocked. reason is a bitmask; the *_days/*_at_time fields detail
+// the active Steam Guard / new-device holds. All times are unix seconds.
+export interface WebTradeEligibility {
+  allowed: number;
+  reason: number;
+  allowed_at_time: number;
+  steamguard_required_days: number;
+  new_device_cooldown_days: number;
+  expiration: number;
+  time_checked: number;
+  [key: string]: unknown;
+}

@@ -958,6 +958,9 @@ var HttpClient = class {
 	async setCookie(rawCookie) {
 		for (const host of COOKIE_HOSTS) await this.jar.setCookie(rawCookie, host);
 	}
+	async getCookie(key, url = URLS.community) {
+		return (await this.jar.getCookies(url)).find((c) => c.key === key)?.value;
+	}
 	async getSessionId() {
 		const existing = (await this.jar.getCookies(URLS.community)).find((c) => c.key === "sessionid");
 		if (existing) return existing.value;
@@ -1295,6 +1298,21 @@ var CommunityNamespace = class {
 			vacBanned: xmlValue(xml, "vacBanned") === "1",
 			privacyState: xmlValue(xml, "privacyState") ?? ""
 		};
+	}
+	async getWebTradeEligibility() {
+		await this.session.getAccessToken();
+		const res = await this.http.get(`${URLS.community}/market/eligibilitycheck/`, {
+			responseType: "text",
+			headers: { Referer: `${URLS.community}/` }
+		});
+		if (res.statusCode >= 400) throw httpError(res);
+		const raw = await this.http.getCookie("webTradeEligibility");
+		if (!raw) throw new SteamError("Steam did not return a webTradeEligibility cookie");
+		try {
+			return JSON.parse(decodeURIComponent(raw));
+		} catch {
+			throw new SteamError("Failed to parse the webTradeEligibility cookie");
+		}
 	}
 	async getSteamLevel(steamId) {
 		const id = steamId ?? this.session.steamID.getSteamID64();

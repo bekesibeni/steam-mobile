@@ -188,6 +188,12 @@ export class HttpClient {
     }
   }
 
+  // Read a cookie value from the jar (includes HttpOnly cookies). undefined if not set.
+  async getCookie(key: string, url: string = URLS.community): Promise<string | undefined> {
+    const cookies = await this.jar.getCookies(url);
+    return cookies.find((c: Cookie) => c.key === key)?.value;
+  }
+
   async getSessionId(): Promise<string> {
     const cookies = await this.jar.getCookies(URLS.community);
     const existing = cookies.find((c: Cookie) => c.key === "sessionid");

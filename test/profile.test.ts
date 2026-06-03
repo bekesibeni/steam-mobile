@@ -10,16 +10,22 @@ const SELF = new SteamID("76561198000000000");
 
 class FakeHttp {
   posts: { url: string; form: unknown }[] = [];
+  gets: string[] = [];
   constructor(
     private readonly text: string,
     private readonly postBody: unknown = {},
+    private readonly cookies: Record<string, string> = {},
   ) {}
-  async get(_url: string) {
+  async get(url: string) {
+    this.gets.push(url);
     return { statusCode: 200, headers: {}, body: this.text };
   }
   async post(url: string, opts: { form?: unknown }) {
     this.posts.push({ url, form: opts.form });
     return { statusCode: 200, headers: {}, body: this.postBody };
+  }
+  async getCookie(key: string) {
+    return this.cookies[key];
   }
   async getSessionId() {
     return "sess";
@@ -29,11 +35,12 @@ class FakeHttp {
 function makeCommunity(
   text: string,
   postBody?: unknown,
+  cookies?: Record<string, string>,
 ): {
   community: CommunityNamespace;
   http: FakeHttp;
 } {
-  const http = new FakeHttp(text, postBody);
+  const http = new FakeHttp(text, postBody, cookies);
   const session = { steamID: SELF, async getAccessToken() {} } as unknown as SessionManager;
   const community = new CommunityNamespace(
     http as unknown as HttpClient,
@@ -73,6 +80,31 @@ describe("CommunityNamespace.getProfile", () => {
   it("throws when the XML is not a profile", async () => {
     const { community } = makeCommunity("<response><error>Profile not found</error></response>");
     await expect(community.getProfile()).rejects.toThrow();
+  });
+});
+
+describe("CommunityNamespace.getWebTradeEligibility", () => {
+  const COOKIE =
+    "%7B%22allowed%22%3A0%2C%22reason%22%3A65536%2C%22allowed_at_time%22%3A1782467980%2C%22steamguard_required_days%22%3A15%2C%22new_device_cooldown_days%22%3A0%2C%22expiration%22%3A1780482531%2C%22time_checked%22%3A1780482231%7D";
+
+  it("decodes the webTradeEligibility cookie 1:1", async () => {
+    const { community, http } = makeCommunity("", {}, { webTradeEligibility: COOKIE });
+    const e = await community.getWebTradeEligibility();
+    expect(http.gets[0]).toBe("https://steamcommunity.com/market/eligibilitycheck/");
+    expect(e).toEqual({
+      allowed: 0,
+      reason: 65536,
+      allowed_at_time: 1782467980,
+      steamguard_required_days: 15,
+      new_device_cooldown_days: 0,
+      expiration: 1780482531,
+      time_checked: 1780482231,
+    });
+  });
+
+  it("throws when Steam sets no cookie", async () => {
+    const { community } = makeCommunity("", {}, {});
+    await expect(community.getWebTradeEligibility()).rejects.toThrow(/webTradeEligibility/);
   });
 });
 
