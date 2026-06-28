@@ -1,6 +1,6 @@
 {
   "name": "steam-mobile",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "private": true,
   "type": "module",
   "description": "Headless Steam mobile-app client (web-based, no CM) for trading.",
