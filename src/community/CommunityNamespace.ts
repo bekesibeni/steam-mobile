@@ -17,6 +17,7 @@ import {
 } from "../models/EconItem.js";
 import type { SessionManager } from "../session/SessionManager.js";
 import type { ConfirmationManager } from "./confirmations.js";
+import { type OpenidLoginOptions, type OpenidLoginResult, steamOpenidLogin } from "./openid.js";
 import { acknowledgeTradeProtection } from "./tradeProtection.js";
 
 const INVENTORY_PAGE_SIZE = 2000;
@@ -131,6 +132,13 @@ export class CommunityNamespace {
     } catch {
       throw new SteamError("Failed to parse the webTradeEligibility cookie");
     }
+  }
+
+  // Log into a third-party site that offers "Sign in through Steam" (OpenID 2.0), spending this live
+  // web session. Returns the cookies the site set - carry them into your own HTTP client for its API.
+  async openidLogin(options: OpenidLoginOptions): Promise<OpenidLoginResult> {
+    await this.session.getAccessToken();
+    return steamOpenidLogin(this.http, options);
   }
 
   // Steam level via IPlayerService (accepts the access token — no API key needed).

@@ -990,6 +990,33 @@ declare class ConfirmationManager {
   private getlist;
 }
 //#endregion
+//#region src/community/openid.d.ts
+interface OpenidConfirmation {
+  location: string;
+  params: Record<string, string>;
+  steamId: string;
+}
+interface OpenidCookie {
+  name: string;
+  value: string;
+}
+interface OpenidLoginResult {
+  steamId: string;
+  finalUrl: string;
+  cookies: OpenidCookie[];
+}
+interface OpenidLoginOptions {
+  initiateUrl: string;
+  cookieHost?: string;
+  maxRedirects?: number;
+}
+declare function parseOpenidForm(html: string): {
+  action: string;
+  fields: MultipartField[];
+} | null;
+declare function confirmOpenid(http: HttpClient, interstitialHtml: string, referer?: string): Promise<OpenidConfirmation>;
+declare function steamOpenidLogin(http: HttpClient, options: OpenidLoginOptions): Promise<OpenidLoginResult>;
+//#endregion
 //#region src/community/CommunityNamespace.d.ts
 interface GetInventoryOptions {
   steamId?: string;
@@ -1022,6 +1049,7 @@ declare class CommunityNamespace {
   }>;
   getProfile(steamId?: string): Promise<SteamProfile>;
   getWebTradeEligibility(): Promise<WebTradeEligibility>;
+  openidLogin(options: OpenidLoginOptions): Promise<OpenidLoginResult>;
   getSteamLevel(steamId?: string): Promise<number>;
   ensureApiKey(domain?: string): Promise<string | null>;
   private requestApiKey;
@@ -1088,6 +1116,9 @@ declare class HttpStatusError extends SteamError {
 }
 declare class SteamSessionExpiredError extends SteamError {
   constructor(message?: string);
+}
+declare class OpenIdError extends SteamError {
+  constructor(message: string);
 }
 declare class RateLimitError extends SteamError {
   readonly statusCode: number | undefined;
@@ -1525,6 +1556,7 @@ declare class SteamMobile extends EventEmitter<SteamMobileEvents> {
   login(): Promise<this>;
   reauthenticate(credentials: ReauthenticateOptions): Promise<void>;
   ensureApiKey(domain?: string): Promise<string | null>;
+  openidLogin(options: OpenidLoginOptions): Promise<OpenidLoginResult>;
   request<T = string>(method: "GET" | "POST", url: string, opts?: RequestOptions): Promise<HttpResponse<T>>;
   get<T = string>(url: string, opts?: RequestOptions): Promise<HttpResponse<T>>;
   post<T = string>(url: string, opts?: RequestOptions): Promise<HttpResponse<T>>;
@@ -1595,5 +1627,5 @@ declare class Poller {
   private stamp;
 }
 //#endregion
-export { ANDROID_PROFILE, type AcceptResult, AccessTokenError, type ApiCallParams, type AssetProperty, AuthClient, type Badge, CommunityNamespace, type Confirmation, ConfirmationError, ConfirmationManager, CredentialSession, type CredentialSessionEvents, type CredentialStartOptions, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, type EconItem, EscrowError, type EscrowHold, type EscrowSide, type ExchangeDetails, type ExchangeItem, FamilyViewError, type GetInventoryOptions, HttpClient, type HttpResponse, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, type JwtPayload, LANG, LoginError, type LoginResult, type LoginWithCredentialsOptions, type MobilePlatform, type MobileProfile, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, OfferTarget, type PlayerBadges, type PlayerBans, type PlayerSummary, type PollChange, type PollData, type PollDataStore, type PollOptions, type PollSource, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, type RateLimit, RateLimitError, type RateLimitedEndpoint, RawAsset, type RawAssetPropertyEntry, RawCEconTradeOffer, type RawDescription, RawExchangeAsset, RawGetTradeOffersResponse, RawGetTradeStatusResponse, type RawInventoryAsset, type RawInventoryResponse, type RawPartnerInventoryResponse, RawTradeStatus, type ReauthenticateOptions, type RequestOptions, type ResolvedTarget, type SendResult, SessionManager, type SessionManagerEvents, type SteamAction, type SteamDescriptionLine, SteamError, SteamMobile, type SteamMobileEvents, type SteamMobileOptions, type SteamProfile, SteamSessionExpiredError, type SteamTag, SteamWebApi, type SteamWebApiOptions, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, type TradeEvents, type TradeHistory, type TradeHistoryEntry, type TradeHistoryOptions, TradeItem, TradeNamespace, TradeOffer, type TradeOfferDeps, type TradeOfferUpdate, type TradeOffersSummary, URLS, type UserDetails, type UserPartnerDetails, type UserSideDetails, WebApiClient, WebTradeEligibility, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry };
+export { ANDROID_PROFILE, type AcceptResult, AccessTokenError, type ApiCallParams, type AssetProperty, AuthClient, type Badge, CommunityNamespace, type Confirmation, ConfirmationError, ConfirmationManager, CredentialSession, type CredentialSessionEvents, type CredentialStartOptions, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, type EconItem, EscrowError, type EscrowHold, type EscrowSide, type ExchangeDetails, type ExchangeItem, FamilyViewError, type GetInventoryOptions, HttpClient, type HttpResponse, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, type JwtPayload, LANG, LoginError, type LoginResult, type LoginWithCredentialsOptions, type MobilePlatform, type MobileProfile, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, OfferTarget, OpenIdError, type OpenidConfirmation, type OpenidCookie, type OpenidLoginOptions, type OpenidLoginResult, type PlayerBadges, type PlayerBans, type PlayerSummary, type PollChange, type PollData, type PollDataStore, type PollOptions, type PollSource, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, type RateLimit, RateLimitError, type RateLimitedEndpoint, RawAsset, type RawAssetPropertyEntry, RawCEconTradeOffer, type RawDescription, RawExchangeAsset, RawGetTradeOffersResponse, RawGetTradeStatusResponse, type RawInventoryAsset, type RawInventoryResponse, type RawPartnerInventoryResponse, RawTradeStatus, type ReauthenticateOptions, type RequestOptions, type ResolvedTarget, type SendResult, SessionManager, type SessionManagerEvents, type SteamAction, type SteamDescriptionLine, SteamError, SteamMobile, type SteamMobileEvents, type SteamMobileOptions, type SteamProfile, SteamSessionExpiredError, type SteamTag, SteamWebApi, type SteamWebApiOptions, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, type TradeEvents, type TradeHistory, type TradeHistoryEntry, type TradeHistoryOptions, TradeItem, TradeNamespace, TradeOffer, type TradeOfferDeps, type TradeOfferUpdate, type TradeOffersSummary, URLS, type UserDetails, type UserPartnerDetails, type UserSideDetails, WebApiClient, WebTradeEligibility, confirmOpenid, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parseOpenidForm, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry, steamOpenidLogin };
 //# sourceMappingURL=index.d.mts.map

@@ -39,6 +39,14 @@ export class SteamSessionExpiredError extends SteamError {
   }
 }
 
+// Steam OpenID relying-party login failed (no interstitial form, missing assertion redirect, etc.).
+export class OpenIdError extends SteamError {
+  constructor(message: string) {
+    super(message);
+    this.name = "OpenIdError";
+  }
+}
+
 export class RateLimitError extends SteamError {
   readonly statusCode: number | undefined;
   readonly retryAfterMs: number;

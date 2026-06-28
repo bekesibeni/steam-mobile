@@ -40,6 +40,7 @@
     "proto": "buf generate",
     "bootstrap": "tsx debug/bootstrap.ts",
     "smoke": "tsx debug/smoke.ts",
+    "openid-login": "tsx debug/openidLogin.ts",
     "watch": "tsx debug/watch.ts",
     "trade": "tsx debug/trade.ts",
     "partner-inventory": "tsx debug/partnerInventory.ts",
@@ -49,19 +50,19 @@
   "dependencies": {
     "@bufbuild/protobuf": "^2.12.0",
     "got": "^15.0.5",
-    "proxy-agent": "^8.0.1",
+    "proxy-agent": "^8.0.2",
     "steamid": "^2.1.0",
     "tough-cookie": "^6.0.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
-    "@bufbuild/buf": "^1.70.0",
+    "@bufbuild/buf": "^1.71.0",
     "@bufbuild/protoc-gen-es": "^2.12.0",
     "@types/node": "^22",
-    "tsdown": "^0.22.0",
-    "tsx": "^4.22.3",
+    "tsdown": "^0.22.3",
+    "tsx": "^4.22.4",
     "typescript": "^6",
     "vite": "^8.0.14",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.9"
   }
 }

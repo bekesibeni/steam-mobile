@@ -6,6 +6,7 @@ import {
 } from "./auth/loginWithCredentials.js";
 import { CommunityNamespace } from "./community/CommunityNamespace.js";
 import { ConfirmationManager } from "./community/confirmations.js";
+import type { OpenidLoginOptions, OpenidLoginResult } from "./community/openid.js";
 import {
   type MobilePlatform,
   type MobileProfile,
@@ -105,6 +106,11 @@ export class SteamMobile extends EventEmitter<SteamMobileEvents> {
   // Existing Web API key, or register one; null if the account is ineligible.
   ensureApiKey(domain?: string): Promise<string | null> {
     return this.community.ensureApiKey(domain);
+  }
+
+  // Log into a third-party site via "Sign in through Steam" (OpenID 2.0), spending this session.
+  openidLogin(options: OpenidLoginOptions): Promise<OpenidLoginResult> {
+    return this.community.openidLogin(options);
   }
 
   // Authenticated escape-hatch HTTP: ensures the session is live, then delegates to http.

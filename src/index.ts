@@ -12,6 +12,15 @@ export {
 export type { GetInventoryOptions, SteamProfile } from "./community/CommunityNamespace.js";
 export { CommunityNamespace } from "./community/CommunityNamespace.js";
 export { type Confirmation, ConfirmationManager } from "./community/confirmations.js";
+export {
+  confirmOpenid,
+  type OpenidConfirmation,
+  type OpenidCookie,
+  type OpenidLoginOptions,
+  type OpenidLoginResult,
+  parseOpenidForm,
+  steamOpenidLogin,
+} from "./community/openid.js";
 export type {
   UserDetails,
   UserPartnerDetails,

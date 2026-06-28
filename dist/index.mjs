@@ -234,7 +234,7 @@ let EResult = /* @__PURE__ */ function(EResult) {
 }({});
 //#endregion
 //#region src/core/eresults.ts
-const TRANSIENT_ERESULTS = new Set([
+const TRANSIENT_ERESULTS = /* @__PURE__ */ new Set([
 	20,
 	10,
 	16,
@@ -244,7 +244,7 @@ const TRANSIENT_ERESULTS = new Set([
 function isTransientEResult(eresult) {
 	return eresult !== void 0 && TRANSIENT_ERESULTS.has(eresult);
 }
-const TERMINAL_AUTH_ERESULTS = new Set([
+const TERMINAL_AUTH_ERESULTS = /* @__PURE__ */ new Set([
 	5,
 	15,
 	26,
@@ -284,6 +284,12 @@ var SteamSessionExpiredError = class extends SteamError {
 	constructor(message = "Not Logged In") {
 		super(message);
 		this.name = "SteamSessionExpiredError";
+	}
+};
+var OpenIdError = class extends SteamError {
+	constructor(message) {
+		super(message);
+		this.name = "OpenIdError";
 	}
 };
 var RateLimitError = class extends SteamError {
@@ -378,82 +384,82 @@ var NoMobileAuthenticatorError = class extends LoginError {
 /**
 * Describes the file steammessages_auth.proto.
 */
-const file_steammessages_auth = /* @__PURE__ */ fileDesc("ChhzdGVhbW1lc3NhZ2VzX2F1dGgucHJvdG8iRwovQ0F1dGhlbnRpY2F0aW9uX0dldFBhc3N3b3JkUlNBUHVibGljS2V5X1JlcXVlc3QSFAoMYWNjb3VudF9uYW1lGAEgASgJInMKMENBdXRoZW50aWNhdGlvbl9HZXRQYXNzd29yZFJTQVB1YmxpY0tleV9SZXNwb25zZRIVCg1wdWJsaWNrZXlfbW9kGAEgASgJEhUKDXB1YmxpY2tleV9leHAYAiABKAkSEQoJdGltZXN0YW1wGAMgASgEIqkCCh1DQXV0aGVudGljYXRpb25fRGV2aWNlRGV0YWlscxIcChRkZXZpY2VfZnJpZW5kbHlfbmFtZRgBIAEoCRJQCg1wbGF0Zm9ybV90eXBlGAIgASgOMhcuRUF1dGhUb2tlblBsYXRmb3JtVHlwZToga19FQXV0aFRva2VuUGxhdGZvcm1UeXBlX1Vua25vd24SDwoHb3NfdHlwZRgDIAEoBRIaChJnYW1pbmdfZGV2aWNlX3R5cGUYBCABKA0SFAoMY2xpZW50X2NvdW50GAUgASgNEhIKCm1hY2hpbmVfaWQYBiABKAwSQQoIYXBwX3R5cGUYByABKA4yEi5FQXV0aFRva2VuQXBwVHlwZToba19FQXV0aFRva2VuQXBwVHlwZV9Vbmtub3duIpUBCiNDQXV0aGVudGljYXRpb25fQWxsb3dlZENvbmZpcm1hdGlvbhJSChFjb25maXJtYXRpb25fdHlwZRgBIAEoDjIWLkVBdXRoU2Vzc2lvbkd1YXJkVHlwZTofa19FQXV0aFNlc3Npb25HdWFyZFR5cGVfVW5rbm93bhIaChJhc3NvY2lhdGVkX21lc3NhZ2UYAiABKAki7gMKNkNBdXRoZW50aWNhdGlvbl9CZWdpbkF1dGhTZXNzaW9uVmlhQ3JlZGVudGlhbHNfUmVxdWVzdBIcChRkZXZpY2VfZnJpZW5kbHlfbmFtZRgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkSGgoSZW5jcnlwdGVkX3Bhc3N3b3JkGAMgASgJEhwKFGVuY3J5cHRpb25fdGltZXN0YW1wGAQgASgEEhYKDnJlbWVtYmVyX2xvZ2luGAUgASgIElAKDXBsYXRmb3JtX3R5cGUYBiABKA4yFy5FQXV0aFRva2VuUGxhdGZvcm1UeXBlOiBrX0VBdXRoVG9rZW5QbGF0Zm9ybVR5cGVfVW5rbm93bhJLCgtwZXJzaXN0ZW5jZRgHIAEoDjIULkVTZXNzaW9uUGVyc2lzdGVuY2U6IGtfRVNlc3Npb25QZXJzaXN0ZW5jZV9QZXJzaXN0ZW50EhsKCndlYnNpdGVfaWQYCCABKAk6B1Vua25vd24SNgoOZGV2aWNlX2RldGFpbHMYCSABKAsyHi5DQXV0aGVudGljYXRpb25fRGV2aWNlRGV0YWlscxISCgpndWFyZF9kYXRhGAogASgJEhAKCGxhbmd1YWdlGAsgASgNEhQKCXFvc19sZXZlbBgMIAEoBToBMiKbAgo3Q0F1dGhlbnRpY2F0aW9uX0JlZ2luQXV0aFNlc3Npb25WaWFDcmVkZW50aWFsc19SZXNwb25zZRIRCgljbGllbnRfaWQYASABKAQSEgoKcmVxdWVzdF9pZBgCIAEoDBIQCghpbnRlcnZhbBgDIAEoAhJDChVhbGxvd2VkX2NvbmZpcm1hdGlvbnMYBCADKAsyJC5DQXV0aGVudGljYXRpb25fQWxsb3dlZENvbmZpcm1hdGlvbhIPCgdzdGVhbWlkGAUgASgEEhIKCndlYWtfdG9rZW4YBiABKAkSHQoVYWdyZWVtZW50X3Nlc3Npb25fdXJsGAcgASgJEh4KFmV4dGVuZGVkX2Vycm9yX21lc3NhZ2UYCCABKAkibwotQ0F1dGhlbnRpY2F0aW9uX1BvbGxBdXRoU2Vzc2lvblN0YXR1c19SZXF1ZXN0EhEKCWNsaWVudF9pZBgBIAEoBBISCgpyZXF1ZXN0X2lkGAIgASgMEhcKD3Rva2VuX3RvX3Jldm9rZRgDIAEoBiL8AQouQ0F1dGhlbnRpY2F0aW9uX1BvbGxBdXRoU2Vzc2lvblN0YXR1c19SZXNwb25zZRIVCg1uZXdfY2xpZW50X2lkGAEgASgEEhkKEW5ld19jaGFsbGVuZ2VfdXJsGAIgASgJEhUKDXJlZnJlc2hfdG9rZW4YAyABKAkSFAoMYWNjZXNzX3Rva2VuGAQgASgJEh4KFmhhZF9yZW1vdGVfaW50ZXJhY3Rpb24YBSABKAgSFAoMYWNjb3VudF9uYW1lGAYgASgJEhYKDm5ld19ndWFyZF9kYXRhGAcgASgJEh0KFWFncmVlbWVudF9zZXNzaW9uX3VybBgIIAEoCSK7AQo7Q0F1dGhlbnRpY2F0aW9uX1VwZGF0ZUF1dGhTZXNzaW9uV2l0aFN0ZWFtR3VhcmRDb2RlX1JlcXVlc3QSEQoJY2xpZW50X2lkGAEgASgEEg8KB3N0ZWFtaWQYAiABKAYSDAoEY29kZRgDIAEoCRJKCgljb2RlX3R5cGUYBCABKA4yFi5FQXV0aFNlc3Npb25HdWFyZFR5cGU6H2tfRUF1dGhTZXNzaW9uR3VhcmRUeXBlX1Vua25vd24iXQo8Q0F1dGhlbnRpY2F0aW9uX1VwZGF0ZUF1dGhTZXNzaW9uV2l0aFN0ZWFtR3VhcmRDb2RlX1Jlc3BvbnNlEh0KFWFncmVlbWVudF9zZXNzaW9uX3VybBgHIAEoCSKgAQoyQ0F1dGhlbnRpY2F0aW9uX0FjY2Vzc1Rva2VuX0dlbmVyYXRlRm9yQXBwX1JlcXVlc3QSFQoNcmVmcmVzaF90b2tlbhgBIAEoCRIPCgdzdGVhbWlkGAIgASgGEkIKDHJlbmV3YWxfdHlwZRgDIAEoDjISLkVUb2tlblJlbmV3YWxUeXBlOhhrX0VUb2tlblJlbmV3YWxUeXBlX05vbmUiYgozQ0F1dGhlbnRpY2F0aW9uX0FjY2Vzc1Rva2VuX0dlbmVyYXRlRm9yQXBwX1Jlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIVCg1yZWZyZXNoX3Rva2VuGAIgASgJIjMKMUNBdXRoZW50aWNhdGlvbl9HZXRBdXRoU2Vzc2lvbnNGb3JBY2NvdW50X1JlcXVlc3QiSAoyQ0F1dGhlbnRpY2F0aW9uX0dldEF1dGhTZXNzaW9uc0ZvckFjY291bnRfUmVzcG9uc2USEgoKY2xpZW50X2lkcxgBIAMoBCKwAQorQ0F1dGhlbnRpY2F0aW9uX1JlZnJlc2hUb2tlbl9SZXZva2VfUmVxdWVzdBIQCgh0b2tlbl9pZBgBIAEoBhIPCgdzdGVhbWlkGAIgASgGEksKDXJldm9rZV9hY3Rpb24YAyABKA4yFy5FQXV0aFRva2VuUmV2b2tlQWN0aW9uOhtrX0VBdXRoVG9rZW5SZXZva2VQZXJtYW5lbnQSEQoJc2lnbmF0dXJlGAQgASgMIi4KLENBdXRoZW50aWNhdGlvbl9SZWZyZXNoVG9rZW5fUmV2b2tlX1Jlc3BvbnNlKrkBChZFQXV0aFRva2VuUGxhdGZvcm1UeXBlEiQKIGtfRUF1dGhUb2tlblBsYXRmb3JtVHlwZV9Vbmtub3duEAASKAoka19FQXV0aFRva2VuUGxhdGZvcm1UeXBlX1N0ZWFtQ2xpZW50EAESJwoja19FQXV0aFRva2VuUGxhdGZvcm1UeXBlX1dlYkJyb3dzZXIQAhImCiJrX0VBdXRoVG9rZW5QbGF0Zm9ybVR5cGVfTW9iaWxlQXBwEAMqhQEKEUVBdXRoVG9rZW5BcHBUeXBlEh8KG2tfRUF1dGhUb2tlbkFwcFR5cGVfVW5rbm93bhAAEicKI2tfRUF1dGhUb2tlbkFwcFR5cGVfTW9iaWxlX1N0ZWFtQXBwEAESJgoia19FQXV0aFRva2VuQXBwVHlwZV9Nb2JpbGVfQ2hhdEFwcBACKuUCChVFQXV0aFNlc3Npb25HdWFyZFR5cGUSIwofa19FQXV0aFNlc3Npb25HdWFyZFR5cGVfVW5rbm93bhAAEiAKHGtfRUF1dGhTZXNzaW9uR3VhcmRUeXBlX05vbmUQARIlCiFrX0VBdXRoU2Vzc2lvbkd1YXJkVHlwZV9FbWFpbENvZGUQAhImCiJrX0VBdXRoU2Vzc2lvbkd1YXJkVHlwZV9EZXZpY2VDb2RlEAMSLgoqa19FQXV0aFNlc3Npb25HdWFyZFR5cGVfRGV2aWNlQ29uZmlybWF0aW9uEAQSLQopa19FQXV0aFNlc3Npb25HdWFyZFR5cGVfRW1haWxDb25maXJtYXRpb24QBRIoCiRrX0VBdXRoU2Vzc2lvbkd1YXJkVHlwZV9NYWNoaW5lVG9rZW4QBhItCilrX0VBdXRoU2Vzc2lvbkd1YXJkVHlwZV9MZWdhY3lNYWNoaW5lQXV0aBAHKlAKEUVUb2tlblJlbmV3YWxUeXBlEhwKGGtfRVRva2VuUmVuZXdhbFR5cGVfTm9uZRAAEh0KGWtfRVRva2VuUmVuZXdhbFR5cGVfQWxsb3cQASqvAgoWRUF1dGhUb2tlblJldm9rZUFjdGlvbhIcChhrX0VBdXRoVG9rZW5SZXZva2VMb2dvdXQQABIfChtrX0VBdXRoVG9rZW5SZXZva2VQZXJtYW5lbnQQARIeChprX0VBdXRoVG9rZW5SZXZva2VSZXBsYWNlZBACEh0KGWtfRUF1dGhUb2tlblJldm9rZVN1cHBvcnQQAxIdChlrX0VBdXRoVG9rZW5SZXZva2VDb25zdW1lEAQSKQola19FQXV0aFRva2VuUmV2b2tlTm9uUmVtZW1iZXJlZExvZ291dBAFEiwKKGtfRUF1dGhUb2tlblJldm9rZU5vblJlbWVtYmVyZWRQZXJtYW5lbnQQBhIfChtrX0VBdXRoVG9rZW5SZXZva2VBdXRvbWF0aWMQByqMAQoTRVNlc3Npb25QZXJzaXN0ZW5jZRIqCh1rX0VTZXNzaW9uUGVyc2lzdGVuY2VfSW52YWxpZBD///////////8BEiMKH2tfRVNlc3Npb25QZXJzaXN0ZW5jZV9FcGhlbWVyYWwQABIkCiBrX0VTZXNzaW9uUGVyc2lzdGVuY2VfUGVyc2lzdGVudBAB");
+const file_steammessages_auth = /*@__PURE__*/ fileDesc("ChhzdGVhbW1lc3NhZ2VzX2F1dGgucHJvdG8iRwovQ0F1dGhlbnRpY2F0aW9uX0dldFBhc3N3b3JkUlNBUHVibGljS2V5X1JlcXVlc3QSFAoMYWNjb3VudF9uYW1lGAEgASgJInMKMENBdXRoZW50aWNhdGlvbl9HZXRQYXNzd29yZFJTQVB1YmxpY0tleV9SZXNwb25zZRIVCg1wdWJsaWNrZXlfbW9kGAEgASgJEhUKDXB1YmxpY2tleV9leHAYAiABKAkSEQoJdGltZXN0YW1wGAMgASgEIqkCCh1DQXV0aGVudGljYXRpb25fRGV2aWNlRGV0YWlscxIcChRkZXZpY2VfZnJpZW5kbHlfbmFtZRgBIAEoCRJQCg1wbGF0Zm9ybV90eXBlGAIgASgOMhcuRUF1dGhUb2tlblBsYXRmb3JtVHlwZToga19FQXV0aFRva2VuUGxhdGZvcm1UeXBlX1Vua25vd24SDwoHb3NfdHlwZRgDIAEoBRIaChJnYW1pbmdfZGV2aWNlX3R5cGUYBCABKA0SFAoMY2xpZW50X2NvdW50GAUgASgNEhIKCm1hY2hpbmVfaWQYBiABKAwSQQoIYXBwX3R5cGUYByABKA4yEi5FQXV0aFRva2VuQXBwVHlwZToba19FQXV0aFRva2VuQXBwVHlwZV9Vbmtub3duIpUBCiNDQXV0aGVudGljYXRpb25fQWxsb3dlZENvbmZpcm1hdGlvbhJSChFjb25maXJtYXRpb25fdHlwZRgBIAEoDjIWLkVBdXRoU2Vzc2lvbkd1YXJkVHlwZTofa19FQXV0aFNlc3Npb25HdWFyZFR5cGVfVW5rbm93bhIaChJhc3NvY2lhdGVkX21lc3NhZ2UYAiABKAki7gMKNkNBdXRoZW50aWNhdGlvbl9CZWdpbkF1dGhTZXNzaW9uVmlhQ3JlZGVudGlhbHNfUmVxdWVzdBIcChRkZXZpY2VfZnJpZW5kbHlfbmFtZRgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkSGgoSZW5jcnlwdGVkX3Bhc3N3b3JkGAMgASgJEhwKFGVuY3J5cHRpb25fdGltZXN0YW1wGAQgASgEEhYKDnJlbWVtYmVyX2xvZ2luGAUgASgIElAKDXBsYXRmb3JtX3R5cGUYBiABKA4yFy5FQXV0aFRva2VuUGxhdGZvcm1UeXBlOiBrX0VBdXRoVG9rZW5QbGF0Zm9ybVR5cGVfVW5rbm93bhJLCgtwZXJzaXN0ZW5jZRgHIAEoDjIULkVTZXNzaW9uUGVyc2lzdGVuY2U6IGtfRVNlc3Npb25QZXJzaXN0ZW5jZV9QZXJzaXN0ZW50EhsKCndlYnNpdGVfaWQYCCABKAk6B1Vua25vd24SNgoOZGV2aWNlX2RldGFpbHMYCSABKAsyHi5DQXV0aGVudGljYXRpb25fRGV2aWNlRGV0YWlscxISCgpndWFyZF9kYXRhGAogASgJEhAKCGxhbmd1YWdlGAsgASgNEhQKCXFvc19sZXZlbBgMIAEoBToBMiKbAgo3Q0F1dGhlbnRpY2F0aW9uX0JlZ2luQXV0aFNlc3Npb25WaWFDcmVkZW50aWFsc19SZXNwb25zZRIRCgljbGllbnRfaWQYASABKAQSEgoKcmVxdWVzdF9pZBgCIAEoDBIQCghpbnRlcnZhbBgDIAEoAhJDChVhbGxvd2VkX2NvbmZpcm1hdGlvbnMYBCADKAsyJC5DQXV0aGVudGljYXRpb25fQWxsb3dlZENvbmZpcm1hdGlvbhIPCgdzdGVhbWlkGAUgASgEEhIKCndlYWtfdG9rZW4YBiABKAkSHQoVYWdyZWVtZW50X3Nlc3Npb25fdXJsGAcgASgJEh4KFmV4dGVuZGVkX2Vycm9yX21lc3NhZ2UYCCABKAkibwotQ0F1dGhlbnRpY2F0aW9uX1BvbGxBdXRoU2Vzc2lvblN0YXR1c19SZXF1ZXN0EhEKCWNsaWVudF9pZBgBIAEoBBISCgpyZXF1ZXN0X2lkGAIgASgMEhcKD3Rva2VuX3RvX3Jldm9rZRgDIAEoBiL8AQouQ0F1dGhlbnRpY2F0aW9uX1BvbGxBdXRoU2Vzc2lvblN0YXR1c19SZXNwb25zZRIVCg1uZXdfY2xpZW50X2lkGAEgASgEEhkKEW5ld19jaGFsbGVuZ2VfdXJsGAIgASgJEhUKDXJlZnJlc2hfdG9rZW4YAyABKAkSFAoMYWNjZXNzX3Rva2VuGAQgASgJEh4KFmhhZF9yZW1vdGVfaW50ZXJhY3Rpb24YBSABKAgSFAoMYWNjb3VudF9uYW1lGAYgASgJEhYKDm5ld19ndWFyZF9kYXRhGAcgASgJEh0KFWFncmVlbWVudF9zZXNzaW9uX3VybBgIIAEoCSK7AQo7Q0F1dGhlbnRpY2F0aW9uX1VwZGF0ZUF1dGhTZXNzaW9uV2l0aFN0ZWFtR3VhcmRDb2RlX1JlcXVlc3QSEQoJY2xpZW50X2lkGAEgASgEEg8KB3N0ZWFtaWQYAiABKAYSDAoEY29kZRgDIAEoCRJKCgljb2RlX3R5cGUYBCABKA4yFi5FQXV0aFNlc3Npb25HdWFyZFR5cGU6H2tfRUF1dGhTZXNzaW9uR3VhcmRUeXBlX1Vua25vd24iXQo8Q0F1dGhlbnRpY2F0aW9uX1VwZGF0ZUF1dGhTZXNzaW9uV2l0aFN0ZWFtR3VhcmRDb2RlX1Jlc3BvbnNlEh0KFWFncmVlbWVudF9zZXNzaW9uX3VybBgHIAEoCSKgAQoyQ0F1dGhlbnRpY2F0aW9uX0FjY2Vzc1Rva2VuX0dlbmVyYXRlRm9yQXBwX1JlcXVlc3QSFQoNcmVmcmVzaF90b2tlbhgBIAEoCRIPCgdzdGVhbWlkGAIgASgGEkIKDHJlbmV3YWxfdHlwZRgDIAEoDjISLkVUb2tlblJlbmV3YWxUeXBlOhhrX0VUb2tlblJlbmV3YWxUeXBlX05vbmUiYgozQ0F1dGhlbnRpY2F0aW9uX0FjY2Vzc1Rva2VuX0dlbmVyYXRlRm9yQXBwX1Jlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIVCg1yZWZyZXNoX3Rva2VuGAIgASgJIjMKMUNBdXRoZW50aWNhdGlvbl9HZXRBdXRoU2Vzc2lvbnNGb3JBY2NvdW50X1JlcXVlc3QiSAoyQ0F1dGhlbnRpY2F0aW9uX0dldEF1dGhTZXNzaW9uc0ZvckFjY291bnRfUmVzcG9uc2USEgoKY2xpZW50X2lkcxgBIAMoBCKwAQorQ0F1dGhlbnRpY2F0aW9uX1JlZnJlc2hUb2tlbl9SZXZva2VfUmVxdWVzdBIQCgh0b2tlbl9pZBgBIAEoBhIPCgdzdGVhbWlkGAIgASgGEksKDXJldm9rZV9hY3Rpb24YAyABKA4yFy5FQXV0aFRva2VuUmV2b2tlQWN0aW9uOhtrX0VBdXRoVG9rZW5SZXZva2VQZXJtYW5lbnQSEQoJc2lnbmF0dXJlGAQgASgMIi4KLENBdXRoZW50aWNhdGlvbl9SZWZyZXNoVG9rZW5fUmV2b2tlX1Jlc3BvbnNlKrkBChZFQXV0aFRva2VuUGxhdGZvcm1UeXBlEiQKIGtfRUF1dGhUb2tlblBsYXRmb3JtVHlwZV9Vbmtub3duEAASKAoka19FQXV0aFRva2VuUGxhdGZvcm1UeXBlX1N0ZWFtQ2xpZW50EAESJwoja19FQXV0aFRva2VuUGxhdGZvcm1UeXBlX1dlYkJyb3dzZXIQAhImCiJrX0VBdXRoVG9rZW5QbGF0Zm9ybVR5cGVfTW9iaWxlQXBwEAMqhQEKEUVBdXRoVG9rZW5BcHBUeXBlEh8KG2tfRUF1dGhUb2tlbkFwcFR5cGVfVW5rbm93bhAAEicKI2tfRUF1dGhUb2tlbkFwcFR5cGVfTW9iaWxlX1N0ZWFtQXBwEAESJgoia19FQXV0aFRva2VuQXBwVHlwZV9Nb2JpbGVfQ2hhdEFwcBACKuUCChVFQXV0aFNlc3Npb25HdWFyZFR5cGUSIwofa19FQXV0aFNlc3Npb25HdWFyZFR5cGVfVW5rbm93bhAAEiAKHGtfRUF1dGhTZXNzaW9uR3VhcmRUeXBlX05vbmUQARIlCiFrX0VBdXRoU2Vzc2lvbkd1YXJkVHlwZV9FbWFpbENvZGUQAhImCiJrX0VBdXRoU2Vzc2lvbkd1YXJkVHlwZV9EZXZpY2VDb2RlEAMSLgoqa19FQXV0aFNlc3Npb25HdWFyZFR5cGVfRGV2aWNlQ29uZmlybWF0aW9uEAQSLQopa19FQXV0aFNlc3Npb25HdWFyZFR5cGVfRW1haWxDb25maXJtYXRpb24QBRIoCiRrX0VBdXRoU2Vzc2lvbkd1YXJkVHlwZV9NYWNoaW5lVG9rZW4QBhItCilrX0VBdXRoU2Vzc2lvbkd1YXJkVHlwZV9MZWdhY3lNYWNoaW5lQXV0aBAHKlAKEUVUb2tlblJlbmV3YWxUeXBlEhwKGGtfRVRva2VuUmVuZXdhbFR5cGVfTm9uZRAAEh0KGWtfRVRva2VuUmVuZXdhbFR5cGVfQWxsb3cQASqvAgoWRUF1dGhUb2tlblJldm9rZUFjdGlvbhIcChhrX0VBdXRoVG9rZW5SZXZva2VMb2dvdXQQABIfChtrX0VBdXRoVG9rZW5SZXZva2VQZXJtYW5lbnQQARIeChprX0VBdXRoVG9rZW5SZXZva2VSZXBsYWNlZBACEh0KGWtfRUF1dGhUb2tlblJldm9rZVN1cHBvcnQQAxIdChlrX0VBdXRoVG9rZW5SZXZva2VDb25zdW1lEAQSKQola19FQXV0aFRva2VuUmV2b2tlTm9uUmVtZW1iZXJlZExvZ291dBAFEiwKKGtfRUF1dGhUb2tlblJldm9rZU5vblJlbWVtYmVyZWRQZXJtYW5lbnQQBhIfChtrX0VBdXRoVG9rZW5SZXZva2VBdXRvbWF0aWMQByqMAQoTRVNlc3Npb25QZXJzaXN0ZW5jZRIqCh1rX0VTZXNzaW9uUGVyc2lzdGVuY2VfSW52YWxpZBD///////////8BEiMKH2tfRVNlc3Npb25QZXJzaXN0ZW5jZV9FcGhlbWVyYWwQABIkCiBrX0VTZXNzaW9uUGVyc2lzdGVuY2VfUGVyc2lzdGVudBAB");
 /**
 * Describes the message CAuthentication_GetPasswordRSAPublicKey_Request.
 * Use `create(CAuthentication_GetPasswordRSAPublicKey_RequestSchema)` to create a new message.
 */
-const CAuthentication_GetPasswordRSAPublicKey_RequestSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 0);
+const CAuthentication_GetPasswordRSAPublicKey_RequestSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 0);
 /**
 * Describes the message CAuthentication_GetPasswordRSAPublicKey_Response.
 * Use `create(CAuthentication_GetPasswordRSAPublicKey_ResponseSchema)` to create a new message.
 */
-const CAuthentication_GetPasswordRSAPublicKey_ResponseSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 1);
+const CAuthentication_GetPasswordRSAPublicKey_ResponseSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 1);
 /**
 * Describes the message CAuthentication_DeviceDetails.
 * Use `create(CAuthentication_DeviceDetailsSchema)` to create a new message.
 */
-const CAuthentication_DeviceDetailsSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 2);
+const CAuthentication_DeviceDetailsSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 2);
 /**
 * Describes the message CAuthentication_BeginAuthSessionViaCredentials_Request.
 * Use `create(CAuthentication_BeginAuthSessionViaCredentials_RequestSchema)` to create a new message.
 */
-const CAuthentication_BeginAuthSessionViaCredentials_RequestSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 4);
+const CAuthentication_BeginAuthSessionViaCredentials_RequestSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 4);
 /**
 * Describes the message CAuthentication_BeginAuthSessionViaCredentials_Response.
 * Use `create(CAuthentication_BeginAuthSessionViaCredentials_ResponseSchema)` to create a new message.
 */
-const CAuthentication_BeginAuthSessionViaCredentials_ResponseSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 5);
+const CAuthentication_BeginAuthSessionViaCredentials_ResponseSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 5);
 /**
 * Describes the message CAuthentication_PollAuthSessionStatus_Request.
 * Use `create(CAuthentication_PollAuthSessionStatus_RequestSchema)` to create a new message.
 */
-const CAuthentication_PollAuthSessionStatus_RequestSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 6);
+const CAuthentication_PollAuthSessionStatus_RequestSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 6);
 /**
 * Describes the message CAuthentication_PollAuthSessionStatus_Response.
 * Use `create(CAuthentication_PollAuthSessionStatus_ResponseSchema)` to create a new message.
 */
-const CAuthentication_PollAuthSessionStatus_ResponseSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 7);
+const CAuthentication_PollAuthSessionStatus_ResponseSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 7);
 /**
 * Describes the message CAuthentication_UpdateAuthSessionWithSteamGuardCode_Request.
 * Use `create(CAuthentication_UpdateAuthSessionWithSteamGuardCode_RequestSchema)` to create a new message.
 */
-const CAuthentication_UpdateAuthSessionWithSteamGuardCode_RequestSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 8);
+const CAuthentication_UpdateAuthSessionWithSteamGuardCode_RequestSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 8);
 /**
 * Describes the message CAuthentication_UpdateAuthSessionWithSteamGuardCode_Response.
 * Use `create(CAuthentication_UpdateAuthSessionWithSteamGuardCode_ResponseSchema)` to create a new message.
 */
-const CAuthentication_UpdateAuthSessionWithSteamGuardCode_ResponseSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 9);
+const CAuthentication_UpdateAuthSessionWithSteamGuardCode_ResponseSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 9);
 /**
 * Describes the message CAuthentication_AccessToken_GenerateForApp_Request.
 * Use `create(CAuthentication_AccessToken_GenerateForApp_RequestSchema)` to create a new message.
 */
-const CAuthentication_AccessToken_GenerateForApp_RequestSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 10);
+const CAuthentication_AccessToken_GenerateForApp_RequestSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 10);
 /**
 * Describes the message CAuthentication_AccessToken_GenerateForApp_Response.
 * Use `create(CAuthentication_AccessToken_GenerateForApp_ResponseSchema)` to create a new message.
 */
-const CAuthentication_AccessToken_GenerateForApp_ResponseSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 11);
+const CAuthentication_AccessToken_GenerateForApp_ResponseSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 11);
 /**
 * Describes the message CAuthentication_GetAuthSessionsForAccount_Request.
 * Use `create(CAuthentication_GetAuthSessionsForAccount_RequestSchema)` to create a new message.
 */
-const CAuthentication_GetAuthSessionsForAccount_RequestSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 12);
+const CAuthentication_GetAuthSessionsForAccount_RequestSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 12);
 /**
 * Describes the message CAuthentication_GetAuthSessionsForAccount_Response.
 * Use `create(CAuthentication_GetAuthSessionsForAccount_ResponseSchema)` to create a new message.
 */
-const CAuthentication_GetAuthSessionsForAccount_ResponseSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 13);
+const CAuthentication_GetAuthSessionsForAccount_ResponseSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 13);
 /**
 * Describes the message CAuthentication_RefreshToken_Revoke_Request.
 * Use `create(CAuthentication_RefreshToken_Revoke_RequestSchema)` to create a new message.
 */
-const CAuthentication_RefreshToken_Revoke_RequestSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 14);
+const CAuthentication_RefreshToken_Revoke_RequestSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 14);
 /**
 * Describes the message CAuthentication_RefreshToken_Revoke_Response.
 * Use `create(CAuthentication_RefreshToken_Revoke_ResponseSchema)` to create a new message.
 */
-const CAuthentication_RefreshToken_Revoke_ResponseSchema = /* @__PURE__ */ messageDesc(file_steammessages_auth, 15);
+const CAuthentication_RefreshToken_Revoke_ResponseSchema = /*@__PURE__*/ messageDesc(file_steammessages_auth, 15);
 //#endregion
 //#region src/session/protoTransport.ts
 function createProtoTransport(http) {
@@ -683,7 +689,7 @@ var CredentialSession = class extends EventEmitter {
 	pollTimeoutMs;
 	auth;
 	clientId = 0n;
-	requestId = new Uint8Array();
+	requestId = /* @__PURE__ */ new Uint8Array();
 	pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
 	allowedConfirmations = [];
 	deadline = 0;
@@ -970,7 +976,7 @@ var HttpClient = class {
 	}
 };
 function randomSessionId() {
-	const bytes = new Uint8Array(12);
+	const bytes = /* @__PURE__ */ new Uint8Array(12);
 	globalThis.crypto.getRandomValues(bytes);
 	return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -1217,6 +1223,92 @@ function parsePartnerInventory(body, contextid, tradableOnly = false) {
 	return items;
 }
 //#endregion
+//#region src/community/openid.ts
+const STEAM_OPENID_URL = `${URLS.community}/openid/login`;
+const DEFAULT_MAX_REDIRECTS = 10;
+const BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+function locationOf(res) {
+	const loc = res.headers.location;
+	return (Array.isArray(loc) ? loc[0] : loc) || void 0;
+}
+function isRedirect(res) {
+	return res.statusCode >= 300 && res.statusCode < 400 && locationOf(res) !== void 0;
+}
+function queryParams(url) {
+	const out = {};
+	for (const [k, v] of new URL(url).searchParams) out[k] = v;
+	return out;
+}
+function decodeEntities(s) {
+	return s.replace(/&quot;/g, "\"").replace(/&#0?39;/g, "'").replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+function parseOpenidForm(html) {
+	const form = [...html.matchAll(/<form\b([^>]*?)>([\s\S]*?)<\/form>/gi)].find((m) => /openid\/login/i.test(m[1] ?? ""));
+	const action = form?.[1]?.match(/\baction=["']([^"']+)["']/i)?.[1];
+	if (!form || !action) return null;
+	const fields = [];
+	for (const tag of (form[2] ?? "").match(/<input\b[^>]*>/gi) ?? []) {
+		const name = tag.match(/\bname=["']([^"']*)["']/i)?.[1];
+		if (!name) continue;
+		const value = decodeEntities(tag.match(/\bvalue=["']([^"']*)["']/i)?.[1] ?? "");
+		fields.push({
+			name,
+			value
+		});
+	}
+	return {
+		action: new URL(decodeEntities(action), STEAM_OPENID_URL).toString(),
+		fields
+	};
+}
+async function confirmOpenid(http, interstitialHtml, referer) {
+	const form = parseOpenidForm(interstitialHtml);
+	if (!form) throw new OpenIdError("no Steam OpenID form in the page; the web session is not authenticated");
+	const res = await http.post(form.action, {
+		multipart: form.fields,
+		headers: { Accept: BROWSER_ACCEPT },
+		...referer ? { referer } : {}
+	});
+	const location = isRedirect(res) ? locationOf(res) : void 0;
+	if (!location) throw new OpenIdError(`Steam returned no OpenID assertion redirect (HTTP ${res.statusCode})`);
+	const params = queryParams(location);
+	const steamId = (params["openid.claimed_id"] ?? params["openid.identity"] ?? "").match(/\/id\/(\d{17})/)?.[1];
+	if (!steamId) throw new OpenIdError("OpenID assertion carried no steamid");
+	return {
+		location,
+		params,
+		steamId
+	};
+}
+async function steamOpenidLogin(http, options) {
+	const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
+	await http.getSessionId();
+	const get = (u) => http.get(u, { headers: { Accept: BROWSER_ACCEPT } });
+	let url = options.initiateUrl;
+	let res = await get(url);
+	for (let i = 0; i < maxRedirects && isRedirect(res); i++) {
+		url = new URL(locationOf(res), url).toString();
+		res = await get(url);
+	}
+	const confirmation = await confirmOpenid(http, res.body, url);
+	url = confirmation.location;
+	res = await get(url);
+	for (let i = 0; i < maxRedirects && isRedirect(res); i++) {
+		url = new URL(locationOf(res), url).toString();
+		res = await get(url);
+	}
+	const cookieHost = options.cookieHost ? `https://${options.cookieHost}` : new URL(url).origin;
+	const cookies = (await http.jar.getCookies(cookieHost)).map((c) => ({
+		name: c.key,
+		value: c.value
+	}));
+	return {
+		steamId: confirmation.steamId,
+		finalUrl: url,
+		cookies
+	};
+}
+//#endregion
 //#region src/community/tradeProtection.ts
 async function acknowledgeTradeProtection(http) {
 	const sessionid = await http.getSessionId();
@@ -1313,6 +1405,10 @@ var CommunityNamespace = class {
 		} catch {
 			throw new SteamError("Failed to parse the webTradeEligibility cookie");
 		}
+	}
+	async openidLogin(options) {
+		await this.session.getAccessToken();
+		return steamOpenidLogin(this.http, options);
 	}
 	async getSteamLevel(steamId) {
 		const id = steamId ?? this.session.steamID.getSteamID64();
@@ -1579,7 +1675,7 @@ function splitKey(key, fallbackTag) {
 }
 //#endregion
 //#region src/core/offerState.ts
-const NON_TERMINAL = new Set([
+const NON_TERMINAL = /* @__PURE__ */ new Set([
 	2,
 	9,
 	11
@@ -1732,7 +1828,7 @@ var SteamWebApi = class {
 * Describes the message CEconItemPreviewDataBlock.
 * Use `create(CEconItemPreviewDataBlockSchema)` to create a new message.
 */
-const CEconItemPreviewDataBlockSchema = /* @__PURE__ */ messageDesc(/* @__PURE__ */ fileDesc("Chdjc2dvX2Vjb25fcHJldmlldy5wcm90byK0CQoZQ0Vjb25JdGVtUHJldmlld0RhdGFCbG9jaxIWCglhY2NvdW50aWQYASABKA1IAIgBARITCgZpdGVtaWQYAiABKARIAYgBARIVCghkZWZpbmRleBgDIAEoDUgCiAEBEhcKCnBhaW50aW5kZXgYBCABKA1IA4gBARITCgZyYXJpdHkYBSABKA1IBIgBARIUCgdxdWFsaXR5GAYgASgNSAWIAQESFgoJcGFpbnR3ZWFyGAcgASgNSAaIAQESFgoJcGFpbnRzZWVkGAggASgNSAeIAQESHwoSa2lsbGVhdGVyc2NvcmV0eXBlGAkgASgNSAiIAQESGwoOa2lsbGVhdGVydmFsdWUYCiABKA1ICYgBARIXCgpjdXN0b21uYW1lGAsgASgJSAqIAQESNAoIc3RpY2tlcnMYDCADKAsyIi5DRWNvbkl0ZW1QcmV2aWV3RGF0YUJsb2NrLlN0aWNrZXISFgoJaW52ZW50b3J5GA0gASgNSAuIAQESEwoGb3JpZ2luGA4gASgNSAyIAQESFAoHcXVlc3RpZBgPIAEoDUgNiAEBEhcKCmRyb3ByZWFzb24YECABKA1IDogBARIXCgptdXNpY2luZGV4GBEgASgNSA+IAQESFQoIZW50aW5kZXgYEiABKAVIEIgBARIVCghwZXRpbmRleBgTIAEoDUgRiAEBEjUKCWtleWNoYWlucxgUIAMoCzIiLkNFY29uSXRlbVByZXZpZXdEYXRhQmxvY2suU3RpY2tlchISCgVzdHlsZRgVIAEoDUgSiAEBGtsCCgdTdGlja2VyEhEKBHNsb3QYASABKA1IAIgBARIXCgpzdGlja2VyX2lkGAIgASgNSAGIAQESEQoEd2VhchgDIAEoAkgCiAEBEhIKBXNjYWxlGAQgASgCSAOIAQESFQoIcm90YXRpb24YBSABKAJIBIgBARIUCgd0aW50X2lkGAYgASgNSAWIAQESFQoIb2Zmc2V0X3gYByABKAJIBogBARIVCghvZmZzZXRfeRgIIAEoAkgHiAEBEhUKCG9mZnNldF96GAkgASgCSAiIAQESFAoHcGF0dGVybhgKIAEoDUgJiAEBQgcKBV9zbG90Qg0KC19zdGlja2VyX2lkQgcKBV93ZWFyQggKBl9zY2FsZUILCglfcm90YXRpb25CCgoIX3RpbnRfaWRCCwoJX29mZnNldF94QgsKCV9vZmZzZXRfeUILCglfb2Zmc2V0X3pCCgoIX3BhdHRlcm5CDAoKX2FjY291bnRpZEIJCgdfaXRlbWlkQgsKCV9kZWZpbmRleEINCgtfcGFpbnRpbmRleEIJCgdfcmFyaXR5QgoKCF9xdWFsaXR5QgwKCl9wYWludHdlYXJCDAoKX3BhaW50c2VlZEIVChNfa2lsbGVhdGVyc2NvcmV0eXBlQhEKD19raWxsZWF0ZXJ2YWx1ZUINCgtfY3VzdG9tbmFtZUIMCgpfaW52ZW50b3J5QgkKB19vcmlnaW5CCgoIX3F1ZXN0aWRCDQoLX2Ryb3ByZWFzb25CDQoLX211c2ljaW5kZXhCCwoJX2VudGluZGV4QgsKCV9wZXRpbmRleEIICgZfc3R5bGViBnByb3RvMw"), 0);
+const CEconItemPreviewDataBlockSchema = /*@__PURE__*/ messageDesc(/* @__PURE__ */ fileDesc("Chdjc2dvX2Vjb25fcHJldmlldy5wcm90byK0CQoZQ0Vjb25JdGVtUHJldmlld0RhdGFCbG9jaxIWCglhY2NvdW50aWQYASABKA1IAIgBARITCgZpdGVtaWQYAiABKARIAYgBARIVCghkZWZpbmRleBgDIAEoDUgCiAEBEhcKCnBhaW50aW5kZXgYBCABKA1IA4gBARITCgZyYXJpdHkYBSABKA1IBIgBARIUCgdxdWFsaXR5GAYgASgNSAWIAQESFgoJcGFpbnR3ZWFyGAcgASgNSAaIAQESFgoJcGFpbnRzZWVkGAggASgNSAeIAQESHwoSa2lsbGVhdGVyc2NvcmV0eXBlGAkgASgNSAiIAQESGwoOa2lsbGVhdGVydmFsdWUYCiABKA1ICYgBARIXCgpjdXN0b21uYW1lGAsgASgJSAqIAQESNAoIc3RpY2tlcnMYDCADKAsyIi5DRWNvbkl0ZW1QcmV2aWV3RGF0YUJsb2NrLlN0aWNrZXISFgoJaW52ZW50b3J5GA0gASgNSAuIAQESEwoGb3JpZ2luGA4gASgNSAyIAQESFAoHcXVlc3RpZBgPIAEoDUgNiAEBEhcKCmRyb3ByZWFzb24YECABKA1IDogBARIXCgptdXNpY2luZGV4GBEgASgNSA+IAQESFQoIZW50aW5kZXgYEiABKAVIEIgBARIVCghwZXRpbmRleBgTIAEoDUgRiAEBEjUKCWtleWNoYWlucxgUIAMoCzIiLkNFY29uSXRlbVByZXZpZXdEYXRhQmxvY2suU3RpY2tlchISCgVzdHlsZRgVIAEoDUgSiAEBGtsCCgdTdGlja2VyEhEKBHNsb3QYASABKA1IAIgBARIXCgpzdGlja2VyX2lkGAIgASgNSAGIAQESEQoEd2VhchgDIAEoAkgCiAEBEhIKBXNjYWxlGAQgASgCSAOIAQESFQoIcm90YXRpb24YBSABKAJIBIgBARIUCgd0aW50X2lkGAYgASgNSAWIAQESFQoIb2Zmc2V0X3gYByABKAJIBogBARIVCghvZmZzZXRfeRgIIAEoAkgHiAEBEhUKCG9mZnNldF96GAkgASgCSAiIAQESFAoHcGF0dGVybhgKIAEoDUgJiAEBQgcKBV9zbG90Qg0KC19zdGlja2VyX2lkQgcKBV93ZWFyQggKBl9zY2FsZUILCglfcm90YXRpb25CCgoIX3RpbnRfaWRCCwoJX29mZnNldF94QgsKCV9vZmZzZXRfeUILCglfb2Zmc2V0X3pCCgoIX3BhdHRlcm5CDAoKX2FjY291bnRpZEIJCgdfaXRlbWlkQgsKCV9kZWZpbmRleEINCgtfcGFpbnRpbmRleEIJCgdfcmFyaXR5QgoKCF9xdWFsaXR5QgwKCl9wYWludHdlYXJCDAoKX3BhaW50c2VlZEIVChNfa2lsbGVhdGVyc2NvcmV0eXBlQhEKD19raWxsZWF0ZXJ2YWx1ZUINCgtfY3VzdG9tbmFtZUIMCgpfaW52ZW50b3J5QgkKB19vcmlnaW5CCgoIX3F1ZXN0aWRCDQoLX2Ryb3ByZWFzb25CDQoLX211c2ljaW5kZXhCCwoJX2VudGluZGV4QgsKCV9wZXRpbmRleEIICgZfc3R5bGViBnByb3RvMw"), 0);
 //#endregion
 //#region src/models/inspect.ts
 const HEX_RE = /^[0-9a-fA-F]+$/;
@@ -2817,6 +2913,9 @@ var SteamMobile = class extends EventEmitter {
 	ensureApiKey(domain) {
 		return this.community.ensureApiKey(domain);
 	}
+	openidLogin(options) {
+		return this.community.openidLogin(options);
+	}
 	async request(method, url, opts) {
 		await this.session.getAccessToken();
 		return this.http.request(method, url, opts);
@@ -2843,6 +2942,6 @@ var SteamMobile = class extends EventEmitter {
 	}
 };
 //#endregion
-export { ANDROID_PROFILE, AccessTokenError, AuthClient, CommunityNamespace, ConfirmationError, ConfirmationManager, CredentialSession, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, EscrowError, FamilyViewError, HttpClient, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, LANG, LoginError, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, RateLimitError, SessionManager, SteamError, SteamMobile, SteamSessionExpiredError, SteamWebApi, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, TradeNamespace, TradeOffer, URLS, WebApiClient, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry };
+export { ANDROID_PROFILE, AccessTokenError, AuthClient, CommunityNamespace, ConfirmationError, ConfirmationManager, CredentialSession, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, EscrowError, FamilyViewError, HttpClient, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, LANG, LoginError, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, OpenIdError, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, RateLimitError, SessionManager, SteamError, SteamMobile, SteamSessionExpiredError, SteamWebApi, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, TradeNamespace, TradeOffer, URLS, WebApiClient, confirmOpenid, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parseOpenidForm, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry, steamOpenidLogin };
 
 //# sourceMappingURL=index.mjs.map
