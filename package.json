@@ -1,10 +1,21 @@
 {
-  "name": "steam-mobile",
+  "name": "@assetpay/steam-mobile",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
   "description": "Headless Steam mobile-app client (web-based, no CM) for trading.",
   "author": "bekesibeni",
+  "license": "MIT",
+  "keywords": [
+    "steam",
+    "steam-mobile",
+    "steam-trade",
+    "steam-trading",
+    "tradeoffer",
+    "mobileconf",
+    "steam-guard",
+    "steamcommunity",
+    "trading-bot"
+  ],
   "homepage": "https://github.com/bekesibeni/steam-mobile#readme",
   "repository": {
     "type": "git",
@@ -27,10 +38,14 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=22"
   },
   "scripts": {
+    "prepublishOnly": "pnpm build",
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src test",

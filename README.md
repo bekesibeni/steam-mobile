@@ -40,15 +40,15 @@ persistent CM connection.
 ## Installation
 
 ```bash
-pnpm add steam-mobile   # Node 22+, ESM only
+pnpm add @assetpay/steam-mobile   # Node 22+, ESM only
 ```
 
-This package is ESM-only and targets Node 22+. Import it with `import { SteamMobile } from "steam-mobile"`.
+This package is ESM-only and targets Node 22+. Import it with `import { SteamMobile } from "@assetpay/steam-mobile"`.
 
 ## The basics
 
 ```ts
-import { SteamMobile } from "steam-mobile";
+import { SteamMobile } from "@assetpay/steam-mobile";
 
 const bot = await new SteamMobile({
   refreshToken: process.env.STEAM_REFRESH_TOKEN!,
@@ -110,7 +110,7 @@ Returns a `Promise` that resolves to a **`LoginResult`**:
 - `username` — The account name Steam echoed back.
 
 ```ts
-import { loginWithCredentials, SteamMobile } from "steam-mobile";
+import { loginWithCredentials, SteamMobile } from "@assetpay/steam-mobile";
 
 const { refreshToken } = await loginWithCredentials({
   username: "myaccount",
@@ -787,7 +787,7 @@ plain JSON object. The same masked format is used by `csgo_econ_action_preview` 
 Decoding is fully offline (XOR-unmask → protobuf), so no game-coordinator call is needed.
 
 ```ts
-import { decodePreviewToken } from "steam-mobile";
+import { decodePreviewToken } from "@assetpay/steam-mobile";
 
 const cert = item.asset_properties.find((p) => p.propertyid === 6)?.string_value;
 const data = decodePreviewToken(cert);
@@ -1114,7 +1114,7 @@ one shared classifier so the same `instanceof` check works everywhere.
 `cooldownUntil = err.unlockAt`:
 
 ```ts
-import { RateLimitError } from "steam-mobile";
+import { RateLimitError } from "@assetpay/steam-mobile";
 
 try {
   await bot.trade.getTradeOffers();
