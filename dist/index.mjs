@@ -1,11 +1,10 @@
-import { Buffer } from "node:buffer";
+import { Buffer as Buffer$1 } from "node:buffer";
 import { create, fromBinary, toBinary, toJson } from "@bufbuild/protobuf";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import { EventEmitter } from "node:events";
 import SteamID from "steamid";
 import { constants, createHash, createHmac, createPublicKey, publicEncrypt } from "node:crypto";
-import got, { RequestError } from "got";
-import { ProxyAgent } from "proxy-agent";
+import { Impit } from "impit";
 import { CookieJar } from "tough-cookie";
 //#region src/core/constants.ts
 const LANG = {
@@ -464,7 +463,7 @@ const CAuthentication_RefreshToken_Revoke_ResponseSchema = /*@__PURE__*/ message
 //#region src/session/protoTransport.ts
 function createProtoTransport(http) {
 	return async (req) => {
-		const base64 = req.body && req.body.length > 0 ? Buffer.from(req.body).toString("base64") : "";
+		const base64 = req.body && req.body.length > 0 ? Buffer$1.from(req.body).toString("base64") : "";
 		const searchParams = {};
 		if (req.accessToken) {
 			searchParams.access_token = req.accessToken;
@@ -502,7 +501,7 @@ function createProtoPost(http) {
 	return (url, base64Body, accessToken) => transport({
 		url,
 		method: "POST",
-		body: Buffer.from(base64Body, "base64"),
+		body: Buffer$1.from(base64Body, "base64"),
 		...accessToken ? { accessToken } : {}
 	});
 }
@@ -595,6 +594,10 @@ var AuthClient = class {
 	}
 };
 function ensureOk(res, apiMethod) {
+	if (res.status === 429) throw new RateLimitError({
+		message: `IAuthenticationService/${apiMethod} HTTP 429`,
+		...res.eresult ? { eresult: Number(res.eresult) } : {}
+	});
 	if (res.status < 200 || res.status >= 300) throw new LoginError(`IAuthenticationService/${apiMethod} HTTP ${res.status}`, {
 		...res.eresult ? { eresult: Number(res.eresult) } : {},
 		...res.errorMessage ? { extendedErrorMessage: res.errorMessage } : {}
@@ -615,7 +618,7 @@ function ensureOk(res, apiMethod) {
 	}
 }
 function toUint8$1(input) {
-	return input instanceof Uint8Array && !Buffer.isBuffer(input) ? input : new Uint8Array(input);
+	return input instanceof Uint8Array && !Buffer$1.isBuffer(input) ? input : new Uint8Array(input);
 }
 //#endregion
 //#region src/crypto/rsa.ts
@@ -624,13 +627,13 @@ function encryptPassword(password, modHex, expHex) {
 		key: createPublicKey({
 			key: {
 				kty: "RSA",
-				n: Buffer.from(modHex, "hex").toString("base64url"),
-				e: Buffer.from(expHex, "hex").toString("base64url")
+				n: Buffer$1.from(modHex, "hex").toString("base64url"),
+				e: Buffer$1.from(expHex, "hex").toString("base64url")
 			},
 			format: "jwk"
 		}),
 		padding: constants.RSA_PKCS1_PADDING
-	}, Buffer.from(password, "utf8")).toString("base64");
+	}, Buffer$1.from(password, "utf8")).toString("base64");
 }
 //#endregion
 //#region src/crypto/steamTotp.ts
@@ -640,7 +643,7 @@ function time(timeOffset = 0) {
 }
 function getAuthCode(secret, timeOffset = 0) {
 	const key = bufferizeSecret(secret);
-	const buffer = Buffer.allocUnsafe(8);
+	const buffer = Buffer$1.allocUnsafe(8);
 	buffer.writeUInt32BE(0, 0);
 	buffer.writeUInt32BE(Math.floor(time(timeOffset) / 30), 4);
 	const hmac = createHmac("sha1", key).update(buffer).digest();
@@ -656,7 +659,7 @@ function getAuthCode(secret, timeOffset = 0) {
 function getConfirmationKey(identitySecret, t, tag) {
 	const key = bufferizeSecret(identitySecret);
 	const dataLen = 8 + (tag ? Math.min(tag.length, 32) : 0);
-	const buffer = Buffer.allocUnsafe(dataLen);
+	const buffer = Buffer$1.allocUnsafe(dataLen);
 	buffer.writeBigUInt64BE(BigInt(t), 0);
 	if (tag) buffer.write(tag, 8);
 	return createHmac("sha1", key).update(buffer).digest("base64");
@@ -667,7 +670,7 @@ function getDeviceID(steamID) {
 }
 function bufferizeSecret(secret) {
 	if (typeof secret !== "string") return secret;
-	return /[0-9a-f]{40}/i.test(secret) ? Buffer.from(secret, "hex") : Buffer.from(secret, "base64");
+	return /[0-9a-f]{40}/i.test(secret) ? Buffer$1.from(secret, "hex") : Buffer$1.from(secret, "base64");
 }
 //#endregion
 //#region src/auth/deviceDetails.ts
@@ -860,6 +863,17 @@ const COOKIE_HOSTS = [
 	URLS.help,
 	URLS.api
 ];
+const IMPIT_BROWSER = {
+	ios: {
+		web: "ios18",
+		native: "ios18"
+	},
+	android: {
+		web: "chrome",
+		native: "okhttp5"
+	}
+};
+const BROWSER_ACCEPT$1 = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 function clean(input) {
 	if (!input) return void 0;
 	const out = {};
@@ -873,30 +887,24 @@ function buildMultipart(fields, boundary) {
 }
 var HttpClient = class {
 	jar;
-	client;
+	webClient;
+	nativeClient;
 	profile;
 	proxy;
 	constructor(opts) {
 		this.jar = new CookieJar();
 		this.profile = opts.profile;
 		this.proxy = opts.proxy;
-		const agent = opts.proxy ? (() => {
-			const proxy = opts.proxy;
-			const a = new ProxyAgent({ getProxyForUrl: () => proxy });
-			return {
-				http: a,
-				https: a
-			};
-		})() : void 0;
-		this.client = got.extend({
+		const makeClient = (browser) => new Impit({
+			browser,
 			cookieJar: this.jar,
-			throwHttpErrors: false,
-			followRedirect: false,
-			decompress: true,
-			retry: { limit: 0 },
-			timeout: { request: 5e4 },
-			...agent ? { agent } : {}
+			followRedirects: false,
+			timeout: 5e4,
+			...opts.proxy ? { proxyUrl: opts.proxy } : {}
 		});
+		const fp = IMPIT_BROWSER[this.profile.mobileClient];
+		this.webClient = makeClient(fp.web);
+		this.nativeClient = fp.native === fp.web ? this.webClient : makeClient(fp.native);
 		for (const raw of [
 			`mobileClient=${this.profile.mobileClient}`,
 			`mobileClientVersion=${this.profile.mobileClientVersion}`,
@@ -919,40 +927,53 @@ var HttpClient = class {
 			"Accept-Language": "en-US,en;q=0.9"
 		};
 		if (isNative) headers.Accept = "application/json, text/plain, */*";
-		else if (method !== "GET") {
-			headers.Origin = URLS.community;
-			if (opts.referer) headers.Referer = opts.referer;
+		else {
+			headers.Accept = opts.responseType === "json" ? "application/json, text/plain, */*" : BROWSER_ACCEPT$1;
+			if (method !== "GET") {
+				headers.Origin = URLS.community;
+				if (opts.referer) headers.Referer = opts.referer;
+			}
 		}
 		let body;
 		if (opts.multipart) {
 			const boundary = `----steamMobile${randomSessionId()}`;
 			body = buildMultipart(opts.multipart, boundary);
 			headers["Content-Type"] = `multipart/form-data; boundary=${boundary}`;
+		} else if (opts.form) body = new URLSearchParams(clean(opts.form));
+		else if (opts.json !== void 0) {
+			body = JSON.stringify(opts.json);
+			headers["Content-Type"] = "application/json";
 		} else if (opts.body !== void 0) body = opts.body;
 		Object.assign(headers, opts.headers);
+		const target = new URL(url);
+		const sp = clean(opts.searchParams);
+		if (sp) for (const [k, v] of Object.entries(sp)) target.searchParams.set(k, v);
 		try {
-			const res = await this.client(url, {
+			const res = await (isNative ? this.nativeClient : this.webClient).fetch(target.toString(), {
 				method,
-				searchParams: clean(opts.searchParams),
-				...opts.form ? { form: clean(opts.form) } : {},
-				...body !== void 0 ? { body } : {},
-				...opts.json !== void 0 ? { json: opts.json } : {},
 				headers,
-				responseType: opts.responseType ?? "text",
+				...body !== void 0 ? { body } : {},
 				...opts.signal ? { signal: opts.signal } : {},
-				...opts.timeoutMs !== void 0 ? { timeout: { request: opts.timeoutMs } } : {}
+				...opts.timeoutMs !== void 0 ? { timeout: opts.timeoutMs } : {}
 			});
+			const responseType = opts.responseType ?? "text";
+			let parsed;
+			if (responseType === "buffer") parsed = Buffer.from(await res.bytes());
+			else if (responseType === "json") {
+				const text = await res.text();
+				parsed = text ? safeJsonParse(text) : void 0;
+			} else parsed = await res.text();
 			return {
-				statusCode: res.statusCode,
-				headers: res.headers,
-				body: res.body
+				statusCode: res.status,
+				headers: headersToRecord(res.headers),
+				body: parsed
 			};
 		} catch (err) {
 			throw this.wrapTransportError(err);
 		}
 	}
 	wrapTransportError(err) {
-		if (this.proxy && err instanceof RequestError && !isAbortError(err)) return new ProxyError(`proxy request failed: ${err.code || err.message}`, { cause: err });
+		if (this.proxy && err instanceof Error && !isAbortError(err)) return new ProxyError(`proxy request failed: ${err.message}`, { cause: err });
 		return err;
 	}
 	get(url, opts) {
@@ -983,8 +1004,24 @@ function randomSessionId() {
 function firstHeader(v) {
 	return Array.isArray(v) ? v[0] : v;
 }
+function headersToRecord(h) {
+	const out = {};
+	h.forEach((value, key) => {
+		out[key] = value;
+	});
+	return out;
+}
+function safeJsonParse(text) {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return;
+	}
+}
 function isAbortError(err) {
-	return err instanceof Error && (err.name === "AbortError" || err.code === "ERR_ABORTED");
+	if (typeof err !== "object" || err === null) return false;
+	const e = err;
+	return e.name === "AbortError" || e.code === "ERR_ABORTED";
 }
 //#endregion
 //#region src/auth/loginWithCredentials.ts
@@ -1844,7 +1881,7 @@ const wearView = /* @__PURE__ */ new DataView(/* @__PURE__ */ new ArrayBuffer(4)
 function decodePreviewToken(hex) {
 	if (!hex || hex.length % 2 !== 0 || hex.length < 12 || !HEX_RE.test(hex)) return null;
 	try {
-		const bytes = Buffer.from(hex, "hex");
+		const bytes = Buffer$1.from(hex, "hex");
 		const xorKey = bytes[0];
 		for (let i = 1; i < bytes.length; i++) bytes[i] = bytes[i] ^ xorKey;
 		const json = toJson(CEconItemPreviewDataBlockSchema, fromBinary(CEconItemPreviewDataBlockSchema, bytes.subarray(1, bytes.length - 4)));
@@ -1872,7 +1909,7 @@ function decodeJwt(token) {
 	try {
 		const payload = token.split(".")[1];
 		if (!payload) return null;
-		const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+		const json = Buffer$1.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
 		return JSON.parse(json);
 	} catch {
 		return null;
@@ -1896,7 +1933,7 @@ function encodeGenerateForAppRequest(refreshToken, renew = false) {
 		steamid: steamId,
 		renewalType: renew ? 1 : 0
 	});
-	return Buffer.from(toBinary(CAuthentication_AccessToken_GenerateForApp_RequestSchema, msg));
+	return Buffer$1.from(toBinary(CAuthentication_AccessToken_GenerateForApp_RequestSchema, msg));
 }
 function decodeGenerateForAppResponse(input) {
 	let accessToken;
@@ -1915,7 +1952,7 @@ function decodeGenerateForAppResponse(input) {
 	} : { accessToken };
 }
 function toUint8(input) {
-	return input instanceof Uint8Array && !Buffer.isBuffer(input) ? input : new Uint8Array(input);
+	return input instanceof Uint8Array && !Buffer$1.isBuffer(input) ? input : new Uint8Array(input);
 }
 const ERESULT_OK = "1";
 async function mintAccessToken(refreshToken, renew, post) {

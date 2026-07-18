@@ -48,7 +48,8 @@ interface RequestOptions {
 }
 declare class HttpClient {
   readonly jar: CookieJar;
-  private readonly client;
+  private readonly webClient;
+  private readonly nativeClient;
   private readonly profile;
   private readonly proxy;
   constructor(opts: {

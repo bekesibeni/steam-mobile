@@ -1,12 +1,23 @@
-import got, { type Got, RequestError } from "got";
-import { ProxyAgent } from "proxy-agent";
+import { type Browser, Impit } from "impit";
 import { type Cookie, CookieJar } from "tough-cookie";
 import { URLS } from "../core/constants.js";
 import { ProxyError } from "../core/errors.js";
-import type { MobileProfile } from "../core/mobileProfile.js";
+import type { MobilePlatform, MobileProfile } from "../core/mobileProfile.js";
 
 // Hosts that share our session cookies. api is included because the mobile app sends them to the WebAPI host too.
 const COOKIE_HOSTS = [URLS.community, URLS.store, URLS.help, URLS.api];
+
+// TLS fingerprint per request kind. iOS runs webview + API on one Apple stack, so ios18 serves both.
+// Android splits: community pages use the Chrome WebView, native api/mobileconf uses okhttp — and Steam's
+// WAF 429s an okhttp fingerprint on the community host, so web pages must look like Chrome.
+const IMPIT_BROWSER: Record<MobilePlatform, { web: Browser; native: Browser }> = {
+  ios: { web: "ios18", native: "ios18" },
+  android: { web: "chrome", native: "okhttp5" },
+};
+
+// Document Accept for webview page loads; a browser always sends one and its absence is a WAF bot tell.
+// (JSON XHRs send application/json instead — see perform().)
+const BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
 type Method = "GET" | "POST";
 type ResponseType = "text" | "json" | "buffer";
@@ -58,7 +69,8 @@ function buildMultipart(fields: MultipartField[], boundary: string): string {
 
 export class HttpClient {
   readonly jar: CookieJar;
-  private readonly client: Got;
+  private readonly webClient: Impit;
+  private readonly nativeClient: Impit;
   private readonly profile: MobileProfile;
   private readonly proxy: string | undefined;
 
@@ -66,23 +78,19 @@ export class HttpClient {
     this.jar = new CookieJar();
     this.profile = opts.profile;
     this.proxy = opts.proxy;
-    const agent = opts.proxy
-      ? (() => {
-          const proxy = opts.proxy as string;
-          const a = new ProxyAgent({ getProxyForUrl: () => proxy });
-          return { http: a, https: a };
-        })()
-      : undefined;
 
-    this.client = got.extend({
-      cookieJar: this.jar,
-      throwHttpErrors: false,
-      followRedirect: false,
-      decompress: true,
-      retry: { limit: 0 },
-      timeout: { request: 50000 },
-      ...(agent ? { agent } : {}),
-    });
+    const makeClient = (browser: Browser): Impit =>
+      new Impit({
+        browser,
+        cookieJar: this.jar,
+        followRedirects: false,
+        timeout: 50000,
+        ...(opts.proxy ? { proxyUrl: opts.proxy } : {}),
+      });
+    const fp = IMPIT_BROWSER[this.profile.mobileClient];
+    this.webClient = makeClient(fp.web);
+    // iOS uses the same fingerprint for both, so reuse the one instance.
+    this.nativeClient = fp.native === fp.web ? this.webClient : makeClient(fp.native);
 
     // Cookies that mark every request as coming from the Steam mobile app.
     for (const raw of [
@@ -129,47 +137,74 @@ export class HttpClient {
     if (isNative) {
       // Native app transport: JSON accept, no browser Origin/Sec-Fetch headers.
       headers.Accept = "application/json, text/plain, */*";
-    } else if (method !== "GET") {
-      headers.Origin = URLS.community;
-      if (opts.referer) headers.Referer = opts.referer;
+    } else {
+      headers.Accept =
+        opts.responseType === "json" ? "application/json, text/plain, */*" : BROWSER_ACCEPT;
+      if (method !== "GET") {
+        headers.Origin = URLS.community;
+        if (opts.referer) headers.Referer = opts.referer;
+      }
     }
-    let body: string | Buffer | undefined;
+
+    // Body: exactly one of multipart / form / json / body. impit auto-sets Content-Type for URLSearchParams;
+    // for the hand-built multipart and json strings we set it explicitly so impit doesn't override.
+    let body: string | Buffer | URLSearchParams | undefined;
     if (opts.multipart) {
       const boundary = `----steamMobile${randomSessionId()}`;
       body = buildMultipart(opts.multipart, boundary);
       headers["Content-Type"] = `multipart/form-data; boundary=${boundary}`;
+    } else if (opts.form) {
+      body = new URLSearchParams(clean(opts.form));
+    } else if (opts.json !== undefined) {
+      body = JSON.stringify(opts.json);
+      headers["Content-Type"] = "application/json";
     } else if (opts.body !== undefined) {
       body = opts.body;
     }
     Object.assign(headers, opts.headers); // explicit caller headers win
 
+    // impit's fetch takes a full URL (no searchParams option) — fold them into the query string.
+    const target = new URL(url);
+    const sp = clean(opts.searchParams);
+    if (sp) for (const [k, v] of Object.entries(sp)) target.searchParams.set(k, v);
+
     try {
-      const res = await this.client(url, {
+      const client = isNative ? this.nativeClient : this.webClient;
+      const res = await client.fetch(target.toString(), {
         method,
-        searchParams: clean(opts.searchParams),
-        ...(opts.form ? { form: clean(opts.form) } : {}),
-        ...(body !== undefined ? { body } : {}),
-        ...(opts.json !== undefined ? { json: opts.json } : {}),
         headers,
-        responseType: (opts.responseType ?? "text") as "text",
+        ...(body !== undefined ? { body } : {}),
         ...(opts.signal ? { signal: opts.signal } : {}),
-        ...(opts.timeoutMs !== undefined ? { timeout: { request: opts.timeoutMs } } : {}),
+        ...(opts.timeoutMs !== undefined ? { timeout: opts.timeoutMs } : {}),
       });
 
+      const responseType: ResponseType = opts.responseType ?? "text";
+      let parsed: unknown;
+      if (responseType === "buffer") {
+        parsed = Buffer.from(await res.bytes());
+      } else if (responseType === "json") {
+        // Match got's throwHttpErrors:false behavior: empty/invalid JSON → falsy body, never throw.
+        const text = await res.text();
+        parsed = text ? safeJsonParse(text) : undefined;
+      } else {
+        parsed = await res.text();
+      }
+
       return {
-        statusCode: res.statusCode,
-        headers: res.headers,
-        body: res.body as unknown as T,
+        statusCode: res.status,
+        headers: headersToRecord(res.headers),
+        body: parsed as T,
       };
     } catch (err) {
       throw this.wrapTransportError(err);
     }
   }
 
-  // got only throws on transport failures here (HTTP statuses don't); attribute them to the proxy if set.
+  // impit only throws on transport failures inside perform() (HTTP statuses don't throw); aborts surface as
+  // a DOMException (not an Error subclass), so instanceof Error && !abort isolates a genuine transport failure.
   private wrapTransportError(err: unknown): unknown {
-    if (this.proxy && err instanceof RequestError && !isAbortError(err)) {
-      return new ProxyError(`proxy request failed: ${err.code || err.message}`, { cause: err });
+    if (this.proxy && err instanceof Error && !isAbortError(err)) {
+      return new ProxyError(`proxy request failed: ${err.message}`, { cause: err });
     }
     return err;
   }
@@ -214,9 +249,25 @@ function firstHeader(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
+// WHATWG Headers → lowercased plain record (consumers read location / x-eresult / x-error_message).
+function headersToRecord(h: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  h.forEach((value, key) => {
+    out[key] = value;
+  });
+  return out;
+}
+
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 function isAbortError(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    (err.name === "AbortError" || (err as { code?: string }).code === "ERR_ABORTED")
-  );
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as { name?: unknown; code?: unknown };
+  return e.name === "AbortError" || e.code === "ERR_ABORTED";
 }

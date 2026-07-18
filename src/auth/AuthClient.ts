@@ -166,6 +166,12 @@ export class AuthClient {
 }
 
 function ensureOk(res: ProtoResult, apiMethod: string): void {
+  if (res.status === 429) {
+    throw new RateLimitError({
+      message: `IAuthenticationService/${apiMethod} HTTP 429`,
+      ...(res.eresult ? { eresult: Number(res.eresult) } : {}),
+    });
+  }
   if (res.status < 200 || res.status >= 300) {
     throw new LoginError(`IAuthenticationService/${apiMethod} HTTP ${res.status}`, {
       ...(res.eresult ? { eresult: Number(res.eresult) } : {}),
