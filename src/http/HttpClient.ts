@@ -71,6 +71,7 @@ export class HttpClient {
   readonly jar: CookieJar;
   private readonly webClient: Impit;
   private readonly nativeClient: Impit;
+  private readonly browserClient: Impit;
   private readonly profile: MobileProfile;
   private readonly proxy: string | undefined;
 
@@ -91,6 +92,10 @@ export class HttpClient {
     this.webClient = makeClient(fp.web);
     // iOS uses the same fingerprint for both, so reuse the one instance.
     this.nativeClient = fp.native === fp.web ? this.webClient : makeClient(fp.native);
+    // Third-party hosts (e.g. an OpenID relying party behind Cloudflare) get a real Chrome hello:
+    // impit's ios18 ClientHello trips Cloudflare's strict TLS parser (decode_error). Steam hosts, which
+    // are lenient, keep the app-accurate fingerprint.
+    this.browserClient = fp.web === "chrome" ? this.webClient : makeClient("chrome");
 
     // Cookies that mark every request as coming from the Steam mobile app.
     for (const raw of [
@@ -169,7 +174,11 @@ export class HttpClient {
     if (sp) for (const [k, v] of Object.entries(sp)) target.searchParams.set(k, v);
 
     try {
-      const client = isNative ? this.nativeClient : this.webClient;
+      const client = isNative
+        ? this.nativeClient
+        : isSteamHost(target.hostname)
+          ? this.webClient
+          : this.browserClient;
       const res = await client.fetch(target.toString(), {
         method,
         headers,
@@ -183,7 +192,7 @@ export class HttpClient {
       if (responseType === "buffer") {
         parsed = Buffer.from(await res.bytes());
       } else if (responseType === "json") {
-        // Match got's throwHttpErrors:false behavior: empty/invalid JSON → falsy body, never throw.
+        // Empty/invalid JSON → undefined body, never throw; callers branch on status, not parse errors.
         const text = await res.text();
         parsed = text ? safeJsonParse(text) : undefined;
       } else {
@@ -247,6 +256,14 @@ function randomSessionId(): string {
 
 function firstHeader(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
+}
+
+const STEAM_HOSTS = ["steamcommunity.com", "steampowered.com"] as const;
+
+// Steam's own hosts (community/store/help/api); everything else is treated as a third-party site.
+function isSteamHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return STEAM_HOSTS.some((d) => h === d || h.endsWith(`.${d}`));
 }
 
 // WHATWG Headers → lowercased plain record (consumers read location / x-eresult / x-error_message).

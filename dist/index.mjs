@@ -889,6 +889,7 @@ var HttpClient = class {
 	jar;
 	webClient;
 	nativeClient;
+	browserClient;
 	profile;
 	proxy;
 	constructor(opts) {
@@ -905,6 +906,7 @@ var HttpClient = class {
 		const fp = IMPIT_BROWSER[this.profile.mobileClient];
 		this.webClient = makeClient(fp.web);
 		this.nativeClient = fp.native === fp.web ? this.webClient : makeClient(fp.native);
+		this.browserClient = fp.web === "chrome" ? this.webClient : makeClient("chrome");
 		for (const raw of [
 			`mobileClient=${this.profile.mobileClient}`,
 			`mobileClientVersion=${this.profile.mobileClientVersion}`,
@@ -949,7 +951,7 @@ var HttpClient = class {
 		const sp = clean(opts.searchParams);
 		if (sp) for (const [k, v] of Object.entries(sp)) target.searchParams.set(k, v);
 		try {
-			const res = await (isNative ? this.nativeClient : this.webClient).fetch(target.toString(), {
+			const res = await (isNative ? this.nativeClient : isSteamHost(target.hostname) ? this.webClient : this.browserClient).fetch(target.toString(), {
 				method,
 				headers,
 				...body !== void 0 ? { body } : {},
@@ -1003,6 +1005,11 @@ function randomSessionId() {
 }
 function firstHeader(v) {
 	return Array.isArray(v) ? v[0] : v;
+}
+const STEAM_HOSTS = ["steamcommunity.com", "steampowered.com"];
+function isSteamHost(host) {
+	const h = host.toLowerCase();
+	return STEAM_HOSTS.some((d) => h === d || h.endsWith(`.${d}`));
 }
 function headersToRecord(h) {
 	const out = {};

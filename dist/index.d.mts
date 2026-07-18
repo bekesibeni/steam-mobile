@@ -50,6 +50,7 @@ declare class HttpClient {
   readonly jar: CookieJar;
   private readonly webClient;
   private readonly nativeClient;
+  private readonly browserClient;
   private readonly profile;
   private readonly proxy;
   constructor(opts: {
