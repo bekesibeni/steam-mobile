@@ -28,6 +28,7 @@ persistent CM connection.
 - [bot.session](#botsession) — token lifecycle and sessions
 - [bot.confirmations](#botconfirmations) — low-level mobile confirmations
 - [decodePreviewToken](#decodepreviewtoken) — decode CS2 item inspect/certificate data
+- [encodePreviewToken](#encodepreviewtoken) — encode CS2 item data back into a token
 - [Data types](#data-types)
 - [Enums](#enums)
 - [Errors](#errors)
@@ -811,6 +812,39 @@ returned as the **float wear** (`0..1`) rather than its raw uint32 bits.
 
 > S/A/D inspect links (the ones with a `D…` parameter) are **not** decodable this way — those carry no
 > embedded data and require a live game-coordinator lookup.
+
+---
+
+## encodePreviewToken
+
+The inverse of [`decodePreviewToken`](#decodepreviewtoken) — takes the JSON shape that one returns and
+packs it back into a masked token. Useful for minting an inspect link for an item that doesn't exist
+(previewing a float/seed combination), or for re-emitting a token after tweaking a field.
+
+```ts
+import { decodePreviewToken, encodePreviewToken } from "@assetpay/steam-mobile";
+
+const data = decodePreviewToken(cert);
+encodePreviewToken(data, 0x2e) === cert; // true — exact round-trip, key included
+
+// Preview the same skin at a different float and pattern seed:
+const hex = encodePreviewToken({ ...data, paintwear: 0.01, paintseed: 661 });
+const link = `steam://rungame/730/76561202255233023/+csgo_econ_action_preview%20${hex}`;
+```
+
+- `data` — a [`CEconItemPreviewDataBlock`](https://github.com/SteamDatabase/Protobufs/blob/master/csgo/cstrike15_gcmessages.proto#L917)
+  as a plain object, in the same camelCase/string-uint64 form `decodePreviewToken` returns.
+- `xorKey` — the mask byte (default `0`). `0` leaves the payload readable; any other byte masks it the
+  way CS2's own links do. Purely cosmetic — the key travels in plaintext as byte 0.
+- Returns uppercase hex, or `null` if `data` isn't a valid preview block or `xorKey` isn't a byte.
+
+`paintwear` is read as the **float wear** (`0..1`) and re-packed into its uint32 bits. It is stored as a
+**float32**, so a value typed as a decimal comes back rounded to ~7 significant digits
+(`0.1` → `0.10000000149011612`); values already read out of a real token round-trip exactly.
+
+> The trailing checksum is an unkeyed CRC32 over `[xorKey, ...protobuf]` — an integrity code, **not** a
+> signature. Masked tokens are self-contained and unauthenticated: CS2 renders them client-side without
+> asking Valve whether the item exists. Nothing here forges ownership of anything.
 
 ---
 
