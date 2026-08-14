@@ -1,6 +1,6 @@
 {
   "name": "@assetpay/steam-mobile",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "description": "Headless Steam mobile-app client (web-based, no CM) for trading.",
   "author": "bekesibeni",
@@ -24,7 +24,7 @@
   "bugs": {
     "url": "https://github.com/bekesibeni/steam-mobile/issues"
   },
-  "packageManager": "pnpm@11.1.1",
+  "packageManager": "pnpm@11.5.0",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
@@ -66,17 +66,17 @@
     "@bufbuild/protobuf": "^2.12.1",
     "impit": "^0.14.3",
     "steamid": "^2.1.0",
-    "tough-cookie": "^6.0.1"
+    "tough-cookie": "^6.0.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "@bufbuild/buf": "^1.72.0",
     "@bufbuild/protoc-gen-es": "^2.12.1",
     "@types/node": "^22",
-    "tsdown": "^0.22.3",
+    "tsdown": "^0.22.14",
     "tsx": "^4.22.4",
-    "typescript": "^6",
-    "vite": "^8.0.14",
-    "vitest": "^4.1.9"
+    "typescript": "^7",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
   }
 }
