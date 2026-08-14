@@ -1,5 +1,5 @@
 import { Buffer as Buffer$1 } from "node:buffer";
-import { create, fromBinary, toBinary, toJson } from "@bufbuild/protobuf";
+import { create, fromBinary, fromJson, toBinary, toJson } from "@bufbuild/protobuf";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import { EventEmitter } from "node:events";
 import SteamID from "steamid";
@@ -18,7 +18,7 @@ const URLS = {
 	api: "https://api.steampowered.com"
 };
 const DEFAULT_CONTEXTID = "2";
-const REFRESH_TOKEN_RENEW_THRESHOLD_SECONDS = 30 * 86400;
+const REFRESH_TOKEN_RENEW_THRESHOLD_SECONDS = 2592e3;
 //#endregion
 //#region src/core/enums.ts
 let ETradeOfferState = /* @__PURE__ */ function(ETradeOfferState) {
@@ -517,33 +517,36 @@ var AuthClient = class {
 	}
 	async getPasswordRSAPublicKey(accountName) {
 		const body = toBinary(CAuthentication_GetPasswordRSAPublicKey_RequestSchema, create(CAuthentication_GetPasswordRSAPublicKey_RequestSchema, { accountName }));
-		return fromBinary(CAuthentication_GetPasswordRSAPublicKey_ResponseSchema, await this.send({
+		const out = await this.send({
 			apiMethod: "GetPasswordRSAPublicKey",
 			method: "GET",
 			body,
 			origin: true
-		}));
+		});
+		return fromBinary(CAuthentication_GetPasswordRSAPublicKey_ResponseSchema, out);
 	}
 	async beginAuthSessionViaCredentials(req) {
 		const body = toBinary(CAuthentication_BeginAuthSessionViaCredentials_RequestSchema, create(CAuthentication_BeginAuthSessionViaCredentials_RequestSchema, req));
-		return fromBinary(CAuthentication_BeginAuthSessionViaCredentials_ResponseSchema, await this.send({
+		const out = await this.send({
 			apiMethod: "BeginAuthSessionViaCredentials",
 			method: "POST",
 			body,
 			multipart: true
-		}));
+		});
+		return fromBinary(CAuthentication_BeginAuthSessionViaCredentials_ResponseSchema, out);
 	}
 	async pollAuthSessionStatus(clientId, requestId) {
 		const body = toBinary(CAuthentication_PollAuthSessionStatus_RequestSchema, create(CAuthentication_PollAuthSessionStatus_RequestSchema, {
 			clientId,
 			requestId
 		}));
-		return fromBinary(CAuthentication_PollAuthSessionStatus_ResponseSchema, await this.send({
+		const out = await this.send({
 			apiMethod: "PollAuthSessionStatus",
 			method: "POST",
 			body,
 			multipart: true
-		}));
+		});
+		return fromBinary(CAuthentication_PollAuthSessionStatus_ResponseSchema, out);
 	}
 	async updateAuthSessionWithSteamGuardCode(clientId, steamid, code, codeType) {
 		const body = toBinary(CAuthentication_UpdateAuthSessionWithSteamGuardCode_RequestSchema, create(CAuthentication_UpdateAuthSessionWithSteamGuardCode_RequestSchema, {
@@ -552,32 +555,35 @@ var AuthClient = class {
 			code,
 			codeType
 		}));
-		return fromBinary(CAuthentication_UpdateAuthSessionWithSteamGuardCode_ResponseSchema, await this.send({
+		const out = await this.send({
 			apiMethod: "UpdateAuthSessionWithSteamGuardCode",
 			method: "POST",
 			body,
 			multipart: true
-		}));
+		});
+		return fromBinary(CAuthentication_UpdateAuthSessionWithSteamGuardCode_ResponseSchema, out);
 	}
 	async getAuthSessionsForAccount(accessToken) {
 		const body = toBinary(CAuthentication_GetAuthSessionsForAccount_RequestSchema, create(CAuthentication_GetAuthSessionsForAccount_RequestSchema, {}));
-		return fromBinary(CAuthentication_GetAuthSessionsForAccount_ResponseSchema, await this.send({
+		const out = await this.send({
 			apiMethod: "GetAuthSessionsForAccount",
 			method: "GET",
 			body,
 			accessToken,
 			origin: true
-		}));
+		});
+		return fromBinary(CAuthentication_GetAuthSessionsForAccount_ResponseSchema, out);
 	}
 	async revokeRefreshToken(accessToken, revokeAction) {
 		const body = toBinary(CAuthentication_RefreshToken_Revoke_RequestSchema, create(CAuthentication_RefreshToken_Revoke_RequestSchema, { revokeAction }));
-		return fromBinary(CAuthentication_RefreshToken_Revoke_ResponseSchema, await this.send({
+		const out = await this.send({
 			apiMethod: "RevokeRefreshToken",
 			method: "POST",
 			body,
 			accessToken,
 			multipart: true
-		}));
+		});
+		return fromBinary(CAuthentication_RefreshToken_Revoke_ResponseSchema, out);
 	}
 	async send(opts) {
 		const url = `${URLS.api}/IAuthenticationService/${opts.apiMethod}/v1`;
@@ -623,15 +629,18 @@ function toUint8$1(input) {
 //#endregion
 //#region src/crypto/rsa.ts
 function encryptPassword(password, modHex, expHex) {
+	const n = Buffer$1.from(modHex, "hex").toString("base64url");
+	const e = Buffer$1.from(expHex, "hex").toString("base64url");
+	const key = createPublicKey({
+		key: {
+			kty: "RSA",
+			n,
+			e
+		},
+		format: "jwk"
+	});
 	return publicEncrypt({
-		key: createPublicKey({
-			key: {
-				kty: "RSA",
-				n: Buffer$1.from(modHex, "hex").toString("base64url"),
-				e: Buffer$1.from(expHex, "hex").toString("base64url")
-			},
-			format: "jwk"
-		}),
+		key,
 		padding: constants.RSA_PKCS1_PADDING
 	}, Buffer$1.from(password, "utf8")).toString("base64");
 }
@@ -1571,7 +1580,7 @@ async function queryServerTimeOffset(http) {
 }
 //#endregion
 //#region src/community/confirmations.ts
-const TIME_OFFSET_TTL_MS = 720 * 60 * 1e3;
+const TIME_OFFSET_TTL_MS = 432e5;
 var ConfirmationManager = class {
 	http;
 	steamID;
@@ -1872,11 +1881,24 @@ var SteamWebApi = class {
 * Describes the message CEconItemPreviewDataBlock.
 * Use `create(CEconItemPreviewDataBlockSchema)` to create a new message.
 */
-const CEconItemPreviewDataBlockSchema = /*@__PURE__*/ messageDesc(/* @__PURE__ */ fileDesc("Chdjc2dvX2Vjb25fcHJldmlldy5wcm90byK0CQoZQ0Vjb25JdGVtUHJldmlld0RhdGFCbG9jaxIWCglhY2NvdW50aWQYASABKA1IAIgBARITCgZpdGVtaWQYAiABKARIAYgBARIVCghkZWZpbmRleBgDIAEoDUgCiAEBEhcKCnBhaW50aW5kZXgYBCABKA1IA4gBARITCgZyYXJpdHkYBSABKA1IBIgBARIUCgdxdWFsaXR5GAYgASgNSAWIAQESFgoJcGFpbnR3ZWFyGAcgASgNSAaIAQESFgoJcGFpbnRzZWVkGAggASgNSAeIAQESHwoSa2lsbGVhdGVyc2NvcmV0eXBlGAkgASgNSAiIAQESGwoOa2lsbGVhdGVydmFsdWUYCiABKA1ICYgBARIXCgpjdXN0b21uYW1lGAsgASgJSAqIAQESNAoIc3RpY2tlcnMYDCADKAsyIi5DRWNvbkl0ZW1QcmV2aWV3RGF0YUJsb2NrLlN0aWNrZXISFgoJaW52ZW50b3J5GA0gASgNSAuIAQESEwoGb3JpZ2luGA4gASgNSAyIAQESFAoHcXVlc3RpZBgPIAEoDUgNiAEBEhcKCmRyb3ByZWFzb24YECABKA1IDogBARIXCgptdXNpY2luZGV4GBEgASgNSA+IAQESFQoIZW50aW5kZXgYEiABKAVIEIgBARIVCghwZXRpbmRleBgTIAEoDUgRiAEBEjUKCWtleWNoYWlucxgUIAMoCzIiLkNFY29uSXRlbVByZXZpZXdEYXRhQmxvY2suU3RpY2tlchISCgVzdHlsZRgVIAEoDUgSiAEBGtsCCgdTdGlja2VyEhEKBHNsb3QYASABKA1IAIgBARIXCgpzdGlja2VyX2lkGAIgASgNSAGIAQESEQoEd2VhchgDIAEoAkgCiAEBEhIKBXNjYWxlGAQgASgCSAOIAQESFQoIcm90YXRpb24YBSABKAJIBIgBARIUCgd0aW50X2lkGAYgASgNSAWIAQESFQoIb2Zmc2V0X3gYByABKAJIBogBARIVCghvZmZzZXRfeRgIIAEoAkgHiAEBEhUKCG9mZnNldF96GAkgASgCSAiIAQESFAoHcGF0dGVybhgKIAEoDUgJiAEBQgcKBV9zbG90Qg0KC19zdGlja2VyX2lkQgcKBV93ZWFyQggKBl9zY2FsZUILCglfcm90YXRpb25CCgoIX3RpbnRfaWRCCwoJX29mZnNldF94QgsKCV9vZmZzZXRfeUILCglfb2Zmc2V0X3pCCgoIX3BhdHRlcm5CDAoKX2FjY291bnRpZEIJCgdfaXRlbWlkQgsKCV9kZWZpbmRleEINCgtfcGFpbnRpbmRleEIJCgdfcmFyaXR5QgoKCF9xdWFsaXR5QgwKCl9wYWludHdlYXJCDAoKX3BhaW50c2VlZEIVChNfa2lsbGVhdGVyc2NvcmV0eXBlQhEKD19raWxsZWF0ZXJ2YWx1ZUINCgtfY3VzdG9tbmFtZUIMCgpfaW52ZW50b3J5QgkKB19vcmlnaW5CCgoIX3F1ZXN0aWRCDQoLX2Ryb3ByZWFzb25CDQoLX211c2ljaW5kZXhCCwoJX2VudGluZGV4QgsKCV9wZXRpbmRleEIICgZfc3R5bGViBnByb3RvMw"), 0);
+const CEconItemPreviewDataBlockSchema = /*@__PURE__*/ messageDesc(/* @__PURE__ */ fileDesc("Chdjc2dvX2Vjb25fcHJldmlldy5wcm90byL8CgoZQ0Vjb25JdGVtUHJldmlld0RhdGFCbG9jaxIWCglhY2NvdW50aWQYASABKA1IAIgBARITCgZpdGVtaWQYAiABKARIAYgBARIVCghkZWZpbmRleBgDIAEoDUgCiAEBEhcKCnBhaW50aW5kZXgYBCABKA1IA4gBARITCgZyYXJpdHkYBSABKA1IBIgBARIUCgdxdWFsaXR5GAYgASgNSAWIAQESFgoJcGFpbnR3ZWFyGAcgASgNSAaIAQESFgoJcGFpbnRzZWVkGAggASgNSAeIAQESHwoSa2lsbGVhdGVyc2NvcmV0eXBlGAkgASgNSAiIAQESGwoOa2lsbGVhdGVydmFsdWUYCiABKA1ICYgBARIXCgpjdXN0b21uYW1lGAsgASgJSAqIAQESNAoIc3RpY2tlcnMYDCADKAsyIi5DRWNvbkl0ZW1QcmV2aWV3RGF0YUJsb2NrLlN0aWNrZXISFgoJaW52ZW50b3J5GA0gASgNSAuIAQESEwoGb3JpZ2luGA4gASgNSAyIAQESFAoHcXVlc3RpZBgPIAEoDUgNiAEBEhcKCmRyb3ByZWFzb24YECABKA1IDogBARIXCgptdXNpY2luZGV4GBEgASgNSA+IAQESFQoIZW50aW5kZXgYEiABKAVIEIgBARIVCghwZXRpbmRleBgTIAEoDUgRiAEBEjUKCWtleWNoYWlucxgUIAMoCzIiLkNFY29uSXRlbVByZXZpZXdEYXRhQmxvY2suU3RpY2tlchISCgVzdHlsZRgVIAEoDUgSiAEBEjYKCnZhcmlhdGlvbnMYFiADKAsyIi5DRWNvbkl0ZW1QcmV2aWV3RGF0YUJsb2NrLlN0aWNrZXISGgoNdXBncmFkZV9sZXZlbBgXIAEoDUgTiAEBGr0DCgdTdGlja2VyEhEKBHNsb3QYASABKA1IAIgBARIXCgpzdGlja2VyX2lkGAIgASgNSAGIAQESEQoEd2VhchgDIAEoAkgCiAEBEhIKBXNjYWxlGAQgASgCSAOIAQESFQoIcm90YXRpb24YBSABKAJIBIgBARIUCgd0aW50X2lkGAYgASgNSAWIAQESFQoIb2Zmc2V0X3gYByABKAJIBogBARIVCghvZmZzZXRfeRgIIAEoAkgHiAEBEhUKCG9mZnNldF96GAkgASgCSAiIAQESFAoHcGF0dGVybhgKIAEoDUgJiAEBEhsKDmhpZ2hsaWdodF9yZWVsGAsgASgNSAqIAQESHAoPd3JhcHBlZF9zdGlja2VyGAwgASgNSAuIAQFCBwoFX3Nsb3RCDQoLX3N0aWNrZXJfaWRCBwoFX3dlYXJCCAoGX3NjYWxlQgsKCV9yb3RhdGlvbkIKCghfdGludF9pZEILCglfb2Zmc2V0X3hCCwoJX29mZnNldF95QgsKCV9vZmZzZXRfekIKCghfcGF0dGVybkIRCg9faGlnaGxpZ2h0X3JlZWxCEgoQX3dyYXBwZWRfc3RpY2tlckIMCgpfYWNjb3VudGlkQgkKB19pdGVtaWRCCwoJX2RlZmluZGV4Qg0KC19wYWludGluZGV4QgkKB19yYXJpdHlCCgoIX3F1YWxpdHlCDAoKX3BhaW50d2VhckIMCgpfcGFpbnRzZWVkQhUKE19raWxsZWF0ZXJzY29yZXR5cGVCEQoPX2tpbGxlYXRlcnZhbHVlQg0KC19jdXN0b21uYW1lQgwKCl9pbnZlbnRvcnlCCQoHX29yaWdpbkIKCghfcXVlc3RpZEINCgtfZHJvcHJlYXNvbkINCgtfbXVzaWNpbmRleEILCglfZW50aW5kZXhCCwoJX3BldGluZGV4QggKBl9zdHlsZUIQCg5fdXBncmFkZV9sZXZlbGIGcHJvdG8z"), 0);
 //#endregion
 //#region src/models/inspect.ts
 const HEX_RE = /^[0-9a-fA-F]+$/;
 const wearView = /* @__PURE__ */ new DataView(/* @__PURE__ */ new ArrayBuffer(4));
+const CRC32_TABLE = /* @__PURE__ */ new Uint32Array(256);
+for (let i = 0; i < 256; i++) {
+	let c = i;
+	for (let k = 0; k < 8; k++) c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
+	CRC32_TABLE[i] = c >>> 0;
+}
+/** Trailing checksum: crc32 over `[xorKey, ...protobuf]` folded with the protobuf length. */
+function previewChecksum(keyed, protoLength) {
+	let crc = 4294967295;
+	for (const byte of keyed) crc = CRC32_TABLE[(crc ^ byte) & 255] ^ crc >>> 8;
+	crc = (crc ^ 4294967295) >>> 0;
+	return (crc & 65535 ^ protoLength * crc) >>> 0;
+}
 /**
 * Decode a CS2 masked preview token — the asset_properties propertyid-6
 * "certificate" hex — into a plain JSON object (uint64 ids as strings, camelCase
@@ -1891,12 +1913,40 @@ function decodePreviewToken(hex) {
 		const bytes = Buffer$1.from(hex, "hex");
 		const xorKey = bytes[0];
 		for (let i = 1; i < bytes.length; i++) bytes[i] = bytes[i] ^ xorKey;
-		const json = toJson(CEconItemPreviewDataBlockSchema, fromBinary(CEconItemPreviewDataBlockSchema, bytes.subarray(1, bytes.length - 4)));
+		const message = fromBinary(CEconItemPreviewDataBlockSchema, bytes.subarray(1, bytes.length - 4));
+		const json = toJson(CEconItemPreviewDataBlockSchema, message);
 		if (typeof json.paintwear === "number") {
 			wearView.setUint32(0, json.paintwear >>> 0, true);
 			json.paintwear = wearView.getFloat32(0, true);
 		}
 		return json;
+	} catch {
+		return null;
+	}
+}
+/**
+* Encode JSON back into a masked preview token — the inverse of
+* {@link decodePreviewToken}, accepting the same shape it returns. `paintwear` is read as
+* the float wear (0..1) and re-packed into its uint32 bits. `xorKey` 0 leaves the payload
+* readable; any other byte masks it the way CS2's own links do. The checksum is unkeyed
+* crc32, so this is an integrity code and not a signature. Returns `null` if the input is
+* not a valid CEconItemPreviewDataBlock.
+*/
+function encodePreviewToken(data, xorKey = 0) {
+	if (!Number.isInteger(xorKey) || xorKey < 0 || xorKey > 255) return null;
+	try {
+		const json = { ...data };
+		if (typeof json.paintwear === "number") {
+			wearView.setFloat32(0, json.paintwear, true);
+			json.paintwear = wearView.getUint32(0, true);
+		}
+		const proto = toBinary(CEconItemPreviewDataBlockSchema, fromJson(CEconItemPreviewDataBlockSchema, json));
+		const bytes = Buffer$1.alloc(proto.length + 5);
+		bytes[0] = xorKey;
+		bytes.set(proto, 1);
+		bytes.writeUInt32BE(previewChecksum(bytes.subarray(0, proto.length + 1), proto.length), proto.length + 1);
+		for (let i = 1; i < bytes.length; i++) bytes[i] = bytes[i] ^ xorKey;
+		return bytes.toString("hex").toUpperCase();
 	} catch {
 		return null;
 	}
@@ -1963,7 +2013,8 @@ function toUint8(input) {
 }
 const ERESULT_OK = "1";
 async function mintAccessToken(refreshToken, renew, post) {
-	const { status, eresult, errorMessage, body } = await post(GENERATE_TOKEN_URL, encodeGenerateForAppRequest(refreshToken, renew).toString("base64"));
+	const req = encodeGenerateForAppRequest(refreshToken, renew);
+	const { status, eresult, errorMessage, body } = await post(GENERATE_TOKEN_URL, req.toString("base64"));
 	if (status < 200 || status >= 300) throw new AccessTokenError(`GenerateAccessTokenForApp HTTP ${status} (eresult=${eresult ?? "?"}${errorMessage ? `, ${errorMessage}` : ""})`, eresult ? Number(eresult) : void 0);
 	if (eresult && eresult !== ERESULT_OK) throw new AccessTokenError(`GenerateAccessTokenForApp failed: eresult=${eresult}${errorMessage ? ` (${errorMessage})` : ""}`, Number(eresult));
 	if (!body.length) throw new AccessTokenError(`GenerateAccessTokenForApp empty response (eresult=${eresult ?? "?"})`);
@@ -2405,9 +2456,7 @@ var Poller = class {
 			case "sentOfferChanged":
 				this.source.emit("sentOfferChanged", change.offer, change.oldState);
 				break;
-			case "receivedOfferChanged":
-				this.source.emit("receivedOfferChanged", change.offer, change.oldState);
-				break;
+			case "receivedOfferChanged": this.source.emit("receivedOfferChanged", change.offer, change.oldState);
 		}
 		const previousState = "oldState" in change ? change.oldState : void 0;
 		this.source.emit("offerUpdate", {
@@ -2471,8 +2520,9 @@ var TradeOffer = class TradeOffer {
 	}
 	static fromData(deps, raw, descriptions) {
 		if (!raw.accountid_other) throw new SteamError(`Trade offer ${raw.tradeofferid} is missing a partner accountid`);
+		const partner = SteamID.fromIndividualAccountID(raw.accountid_other);
 		const offer = new TradeOffer(deps, {
-			partner: SteamID.fromIndividualAccountID(raw.accountid_other),
+			partner,
 			id: raw.tradeofferid
 		});
 		offer.message = raw.message ?? "";
@@ -2986,6 +3036,6 @@ var SteamMobile = class extends EventEmitter {
 	}
 };
 //#endregion
-export { ANDROID_PROFILE, AccessTokenError, AuthClient, CommunityNamespace, ConfirmationError, ConfirmationManager, CredentialSession, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, EscrowError, FamilyViewError, HttpClient, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, LANG, LoginError, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, OpenIdError, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, RateLimitError, SessionManager, SteamError, SteamMobile, SteamSessionExpiredError, SteamWebApi, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, TradeNamespace, TradeOffer, URLS, WebApiClient, confirmOpenid, decodeJwt, decodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parseOpenidForm, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry, steamOpenidLogin };
+export { ANDROID_PROFILE, AccessTokenError, AuthClient, CommunityNamespace, ConfirmationError, ConfirmationManager, CredentialSession, DEFAULT_CONTEXTID, DEFAULT_POLL_FULL_UPDATE_INTERVAL, DEFAULT_POLL_INTERVAL, DEFAULT_POLL_MAX_AGE_MS, DEFAULT_RATE_LIMIT_RETRY_MS, EAuthSessionGuardType, EAuthTokenPlatformType, EAuthTokenRevokeAction, EConfirmationMethod, EConfirmationType, EOfferFilter, EResult, ESessionPersistence, ETokenRenewalType, ETradeOfferState, ETradeStatus, EscrowError, FamilyViewError, HttpClient, HttpStatusError, IOS_PROFILE, ItemServerUnavailableError, LANG, LoginError, NewDeviceError, NoMobileAuthenticatorError, OfferLimitError, OpenIdError, Poller, PrivateInventoryError, ProxyError, RATE_LIMITS, RETRY_AFTER, RateLimitError, SessionManager, SteamError, SteamMobile, SteamSessionExpiredError, SteamWebApi, TERMINAL_AUTH_ERESULTS, TRANSIENT_ERESULTS, TargetCannotTradeError, TradeBanError, TradeNamespace, TradeOffer, URLS, WebApiClient, confirmOpenid, decodeJwt, decodePreviewToken, encodePreviewToken, getTradeHistory, getTradeOffersSummary, getTradeStatus, isTerminalAuthEResult, isTerminalState, isTransientEResult, loginWithCredentials, parseInventory, parseOpenidForm, parsePartnerInventory, resolveMobileProfile, resolveTarget, secondsUntilExpiry, steamOpenidLogin };
 
 //# sourceMappingURL=index.mjs.map

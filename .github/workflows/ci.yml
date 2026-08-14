@@ -32,6 +32,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # dist/ is committed and shipped as-is to git consumers (github: specifiers install the
+      # tarball, which never runs a build). A stale dist silently omits new exports, so fail here.
+      - name: Verify dist is up to date
+        run: git diff --exit-code -- dist || (echo "::error::dist is stale — run 'pnpm build' and commit" && exit 1)
+
       # Generated protobufs are committed; fail if they drift from the .proto source.
       - name: Verify generated protobufs are up to date
         run: |
