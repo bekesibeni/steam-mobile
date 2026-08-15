@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: AssetPay product support
+    url: https://assetpay.gg/contact
+    about: Questions about AssetPay accounts, integrations, payments, pricing, or settlements.
+  - name: Security vulnerability
+    url: https://assetpay.gg/security
+    about: Report security issues privately. Never disclose secrets in a GitHub issue.
+  - name: AssetPay API documentation
+    url: https://assetpay.gg/docs
+    about: Integration guides and API reference for the AssetPay platform.

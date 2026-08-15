@@ -1,0 +1,60 @@
+name: Feature request
+description: Suggest a new capability or API for @assetpay/steam-mobile.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the production use case first. Steam wire behavior should be backed by upstream code, documentation, or a sanitized real response whenever possible.
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What are you trying to build, and why is the current API insufficient?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-api
+    attributes:
+      label: Proposed API
+      description: Show how you would expect consumers to use the feature.
+      render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: steam-behavior
+    attributes:
+      label: Steam or upstream behavior
+      description: Link relevant Steam behavior, DoctorMcKay implementation, documentation, or sanitized response samples.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe your current workaround and other approaches you considered.
+
+  - type: dropdown
+    id: compatibility
+    attributes:
+      label: Compatibility impact
+      options:
+        - Additive change
+        - Changes existing behavior
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and documentation for this capability.
+          required: true
+        - label: I have not included credentials, tokens, cookies, secrets, or personal data.
+          required: true
