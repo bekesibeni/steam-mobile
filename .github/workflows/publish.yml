@@ -54,7 +54,7 @@ jobs:
       # to this commit + workflow run. Auth via npm Trusted Publisher
       # (OIDC) — no NPM_TOKEN needed. Configured at:
       #   https://www.npmjs.com/package/@assetpay/steam-mobile/access
-      #     Organization:      bekesibeni
+      #     Organization:      assetpaygg
       #     Repository:        steam-mobile
       #     Workflow filename: publish.yml
       #     Environment:       (blank)
