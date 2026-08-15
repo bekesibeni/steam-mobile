@@ -5,6 +5,9 @@ unifies the *web* logic of [`steamcommunity`](https://github.com/DoctorMcKay/nod
 [`steam-tradeoffer-manager`](https://github.com/DoctorMcKay/node-steam-tradeoffer-manager) into one
 cohesive, Promise-native package — with **no `steam-user` and no Steam CM binary protocol**.
 
+Built and maintained by [AssetPay](https://assetpay.gg), where it powers the Steam trading layer
+behind CS2 and Rust skin payments.
+
 Everything the mobile app needs is in-package: credential login, TOTP, mobile confirmations
 (`mobileconf`), and the `IAuthenticationService` protobufs. The only runtime dependencies are
 [`got`](https://github.com/sindresorhus/got), [`proxy-agent`](https://github.com/TooTallNate/proxy-agents),
