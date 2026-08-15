@@ -3,7 +3,10 @@
   "version": "1.0.4",
   "type": "module",
   "description": "Headless Steam mobile-app client (web-based, no CM) for trading.",
-  "author": "bekesibeni",
+  "author": {
+    "name": "AssetPay",
+    "url": "https://assetpay.gg"
+  },
   "license": "MIT",
   "keywords": [
     "steam",
@@ -16,13 +19,13 @@
     "steamcommunity",
     "trading-bot"
   ],
-  "homepage": "https://github.com/bekesibeni/steam-mobile#readme",
+  "homepage": "https://github.com/assetpaygg/steam-mobile#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bekesibeni/steam-mobile.git"
+    "url": "git+https://github.com/assetpaygg/steam-mobile.git"
   },
   "bugs": {
-    "url": "https://github.com/bekesibeni/steam-mobile/issues"
+    "url": "https://github.com/assetpaygg/steam-mobile/issues"
   },
   "packageManager": "pnpm@11.5.0",
   "main": "./dist/index.mjs",

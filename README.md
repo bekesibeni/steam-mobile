@@ -5,6 +5,19 @@ unifies the *web* logic of [`steamcommunity`](https://github.com/DoctorMcKay/nod
 [`steam-tradeoffer-manager`](https://github.com/DoctorMcKay/node-steam-tradeoffer-manager) into one
 cohesive, Promise-native package — with **no `steam-user` and no Steam CM binary protocol**.
 
+## Built by AssetPay
+
+This library is built and maintained by [AssetPay](https://assetpay.gg), B2B skin payment
+infrastructure for merchants accepting CS2 and Rust skins. AssetPay provides a documented REST API
+for inventory valuation, trade creation, automated settlement, and webhooks, backed by live pricing
+and fraud controls.
+
+In production, `@assetpay/steam-mobile` powers AssetPay's Steam-facing layer: it maintains bot
+sessions, loads inventories, sends and monitors trade offers, handles mobile confirmations, and
+decodes item inspection data. AssetPay's merchant API, orchestration, and ledger are built on top of
+this lower-level client. See the [AssetPay API documentation](https://assetpay.gg/docs) to learn how
+the complete payment platform fits together.
+
 Everything the mobile app needs is in-package: credential login, TOTP, mobile confirmations
 (`mobileconf`), and the `IAuthenticationService` protobufs. The only runtime dependencies are
 [`got`](https://github.com/sindresorhus/got), [`proxy-agent`](https://github.com/TooTallNate/proxy-agents),
@@ -18,6 +31,7 @@ persistent CM connection.
 
 ## Table of contents
 
+- [Built by AssetPay](#built-by-assetpay)
 - [Installation](#installation)
 - [The basics](#the-basics)
 - [Logging in](#logging-in)
